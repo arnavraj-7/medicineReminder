@@ -19,7 +19,7 @@ const PORT = process.env.PORT || 6000;
 
 // --- Middleware ---
 app.use(cors({
-  origin: 'http://localhost:8081', // Your Expo app's URL
+  origin: '*', // Your Expo app's URL
   credentials: true,
 }));
 app.use(express.json());
