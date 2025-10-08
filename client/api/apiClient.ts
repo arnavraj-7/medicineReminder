@@ -1,16 +1,23 @@
 import axios from 'axios';
 
+// Create an Axios instance
 const apiClient = axios.create({
-  // IMPORTANT: Replace with your actual backend URL.
-  // For an Android emulator, this is typically http://10.0.2.2:PORT
-  // baseURL: 'http://172.20.10.3:6000/api',
-  baseURL: 'https://medicinereminder-mugz.onrender.com/api', 
-
-  
-  // This is the magic ingredient. It tells Axios to automatically
-  // send and receive cookies with every request.
-  withCredentials: true, 
+  baseURL: 'https://medicinereminder-mugz.onrender.com/api',
+  withCredentials: true, // This can still stay if you want to use cookies later
 });
 
-export default apiClient;
+// Add a request interceptor to send the userId header automatically
+apiClient.interceptors.request.use(
+ (config) => {
+    if (config.url && !config.url.includes('/auth/login') && !config.url.includes('/auth/signup')) {
+      const userId = localStorage.getItem('userId'); // Or AsyncStorage in Expo
+      config.headers['x-user-id'] = userId || null; // Explicit null if missing
+    }
+    return config;
+     },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
 
+export default apiClient;

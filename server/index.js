@@ -37,20 +37,20 @@ app.use(express.json());
 app.use(cookieParser());
 
 // --- Session Configuration ---
-app.use(session({
-  secret: process.env.SESSION_SECRET, 
-  resave: false,
-  saveUninitialized: false,
-  store: MongoStore.create({ 
-    mongoUrl: process.env.MONGO_URI 
-  }),
-  cookie: {
-  secure: true, // true only in production HTTPS
-  httpOnly: true,
-  sameSite: 'none', // allow cross-origin cookies
-  maxAge: 1000 * 60 * 60 * 24 * 7
-}
-}));
+// app.use(session({
+//   secret: process.env.SESSION_SECRET, 
+//   resave: false,
+//   saveUninitialized: false,
+//   store: MongoStore.create({ 
+//     mongoUrl: process.env.MONGO_URI 
+//   }),
+//   cookie: {
+//   secure: true, // true only in production HTTPS
+//   httpOnly: true,
+//   sameSite: 'none', // allow cross-origin cookies
+//   maxAge: 1000 * 60 * 60 * 24 * 7
+// }
+// }));
 
 // --- API Routes ---
 // Public routes for authentication
