@@ -18,20 +18,11 @@ const app = express();
 const PORT = process.env.PORT || 6000;
 
 // --- Middleware ---
-  app.use(cors({
-  origin: (origin, callback) => {
-    const allowedOrigins = [
-      'http://localhost:8081', 
-      'https://medicinereminder-mugz.onrender.com'
-    ];
-    if (!origin) return callback(null, true); // allow mobile apps with no origin
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    callback(new Error('Not allowed by CORS'));
-  },
+ app.use(cors({
+  origin: '*',
   credentials: true
 }));
+
 
 app.use(express.json());
 app.use(cookieParser());
