@@ -1,6 +1,7 @@
 const authMiddleware = (req, res, next) => {
   // Check if a session exists and has a user property
   if (req.session && req.session.user) {
+    console.log('User is authenticated:', req.session.user);
     // Attach user ID to the request object for use in other routes
     req.user = req.session.user; 
     next();
