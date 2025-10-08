@@ -23,7 +23,6 @@ const PORT = process.env.PORT || 6000;
   credentials: true
 }));
 
-
 app.use(express.json());
 app.use(cookieParser());
 
