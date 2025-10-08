@@ -18,7 +18,6 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import apiClient from '../../api/apiClient';
 import { useTheme } from '../../context/ThemeContext';
-// import NotificationService from '../../services/NotificationService';
 
 const { width } = Dimensions.get('window');
 
@@ -37,20 +36,44 @@ const AddMedicineScreen: React.FC = () => {
   const router = useRouter();
 
   const frequencyOptions = [
-    { label: 'Once daily', value: 'Once daily', times: 1, icon: '1️⃣' },
-    { label: 'Twice daily', value: 'Twice daily', times: 2, icon: '2️⃣' },
-    { label: 'Three times daily', value: 'Three times daily', times: 3, icon: '3️⃣' },
-    { label: 'Four times daily', value: 'Four times daily', times: 4, icon: '4️⃣' },
-    { label: 'Every 8 hours', value: 'Every 8 hours', times: 3, icon: '⏰' },
-    { label: 'Every 12 hours', value: 'Every 12 hours', times: 2, icon: '⏰' },
-    { label: 'As needed', value: 'As needed', times: 1, icon: '💊' },
+    { label: 'Once daily', value: 'Once daily', times: 1, icon: 'timer-outline' },
+    { label: 'Twice daily', value: 'Twice daily', times: 2, icon: 'time-outline' },
+    { label: 'Three times', value: 'Three times daily', times: 3, icon: 'alarm-outline' },
+    { label: 'Four times', value: 'Four times daily', times: 4, icon: 'notifications-outline' },
+    { label: 'Every 8 hrs', value: 'Every 8 hours', times: 3, icon: 'refresh-outline' },
+    { label: 'Every 12 hrs', value: 'Every 12 hours', times: 2, icon: 'repeat-outline' },
+    { label: 'As needed', value: 'As needed', times: 1, icon: 'medkit-outline' },
   ];
 
   const foodTimingOptions = [
-    { label: 'Anytime', value: 'anytime', icon: 'checkmark-circle-outline', description: 'No food requirement' },
-    { label: 'Before Food', value: 'before', icon: 'restaurant-outline', description: 'Take on empty stomach' },
-    { label: 'After Food', value: 'after', icon: 'restaurant', description: 'Take after eating' },
-    { label: 'With Food', value: 'with', icon: 'fast-food-outline', description: 'Take while eating' },
+    { 
+      label: 'Anytime', 
+      value: 'anytime', 
+      icon: 'checkmark-circle', 
+      color: '#10B981',
+      description: 'No food required' 
+    },
+    { 
+      label: 'Before Food', 
+      value: 'before', 
+      icon: 'restaurant-outline',
+      color: '#F59E0B',
+      description: 'Empty stomach' 
+    },
+    { 
+      label: 'After Food', 
+      value: 'after', 
+      icon: 'restaurant',
+      color: '#3B82F6',
+      description: 'After eating' 
+    },
+    { 
+      label: 'With Food', 
+      value: 'with', 
+      icon: 'fast-food',
+      color: '#8B5CF6',
+      description: 'While eating' 
+    },
   ];
 
   const updateTimesForFrequency = (selectedFrequency: string) => {
@@ -148,20 +171,22 @@ const AddMedicineScreen: React.FC = () => {
       <TouchableOpacity
         key={index}
         style={[
-          styles.timeButton,
+          styles.timeChip,
           { 
-            backgroundColor: colors.primary + '15',
-            borderColor: colors.primary,
+            backgroundColor: colors.primary + '10',
+            borderColor: colors.primary + '30',
           }
         ]}
         onPress={() => openTimePicker(index)}
         activeOpacity={0.7}
       >
-        <Ionicons name="time" size={24} color={colors.primary} />
-        <Text style={[styles.timeButtonText, { color: colors.primary }]}>
+        <View style={[styles.timeIconWrapper, { backgroundColor: colors.primary }]}>
+          <Ionicons name="time" size={18} color="#FFFFFF" />
+        </View>
+        <Text style={[styles.timeChipText, { color: colors.primary }]}>
           {time}
         </Text>
-        <Ionicons name="chevron-down" size={18} color={colors.primary} />
+        <Ionicons name="chevron-down" size={16} color={colors.primary} />
       </TouchableOpacity>
     ));
   };
@@ -170,18 +195,21 @@ const AddMedicineScreen: React.FC = () => {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} />
       
-      {/* Header */}
-      <View style={[styles.header, { borderBottomColor: colors.borderColor }]}>
+      {/* Premium Header */}
+      <View style={[styles.header, { backgroundColor: colors.card }]}>
         <TouchableOpacity 
           style={styles.backButton}
           onPress={() => router.back()}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={26} color={colors.text} />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>
-          Add Medicine
-        </Text>
+        <View style={styles.headerCenter}>
+          <Ionicons name="medical" size={24} color={colors.primary} />
+          <Text style={[styles.headerTitle, { color: colors.text }]}>
+            Add Medicine
+          </Text>
+        </View>
         <View style={styles.placeholder} />
       </View>
 
@@ -198,20 +226,27 @@ const AddMedicineScreen: React.FC = () => {
         >
           <View style={styles.form}>
             {/* Medicine Name */}
-            <View style={styles.inputGroup}>
-              <View style={styles.labelContainer}>
-                <Ionicons name="medical" size={20} color={colors.primary} />
-                <Text style={[styles.label, { color: colors.text }]}>
-                  Medicine Name
-                </Text>
+            <View style={[styles.inputSection, { backgroundColor: colors.card }]}>
+              <View style={styles.sectionHeader}>
+                <View style={[styles.iconBadge, { backgroundColor: colors.primary + '15' }]}>
+                  <Ionicons name="medical" size={20} color={colors.primary} />
+                </View>
+                <View style={styles.sectionHeaderText}>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                    Medicine Name
+                  </Text>
+                  <Text style={[styles.sectionSubtitle, { color: colors.subtleText }]}>
+                    What medicine are you taking?
+                  </Text>
+                </View>
                 <Text style={styles.required}>*</Text>
               </View>
               <TextInput
                 style={[
                   styles.input,
-                  { backgroundColor: colors.card, color: colors.text, borderColor: colors.borderColor }
+                  { backgroundColor: colors.background, color: colors.text, borderColor: colors.borderColor }
                 ]}
-                placeholder="e.g., Aspirin, Vitamin D"
+                placeholder="e.g., Aspirin, Vitamin D, Paracetamol"
                 placeholderTextColor={colors.subtleText}
                 value={name}
                 onChangeText={setName}
@@ -220,20 +255,27 @@ const AddMedicineScreen: React.FC = () => {
             </View>
 
             {/* Dosage */}
-            <View style={styles.inputGroup}>
-              <View style={styles.labelContainer}>
-                <Ionicons name="flask" size={20} color={colors.primary} />
-                <Text style={[styles.label, { color: colors.text }]}>
-                  Dosage
-                </Text>
+            <View style={[styles.inputSection, { backgroundColor: colors.card }]}>
+              <View style={styles.sectionHeader}>
+                <View style={[styles.iconBadge, { backgroundColor: '#3B82F6' + '15' }]}>
+                  <Ionicons name="flask" size={20} color="#3B82F6" />
+                </View>
+                <View style={styles.sectionHeaderText}>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                    Dosage
+                  </Text>
+                  <Text style={[styles.sectionSubtitle, { color: colors.subtleText }]}>
+                    How much do you need to take?
+                  </Text>
+                </View>
                 <Text style={styles.required}>*</Text>
               </View>
               <TextInput
                 style={[
                   styles.input,
-                  { backgroundColor: colors.card, color: colors.text, borderColor: colors.borderColor }
+                  { backgroundColor: colors.background, color: colors.text, borderColor: colors.borderColor }
                 ]}
-                placeholder="e.g., 500mg, 1 tablet, 5ml"
+                placeholder="e.g., 500mg, 1 tablet, 5ml, 2 capsules"
                 placeholderTextColor={colors.subtleText}
                 value={dosage}
                 onChangeText={setDosage}
@@ -241,31 +283,42 @@ const AddMedicineScreen: React.FC = () => {
             </View>
 
             {/* Frequency */}
-            <View style={styles.inputGroup}>
-              <View style={styles.labelContainer}>
-                <Ionicons name="repeat" size={20} color={colors.primary} />
-                <Text style={[styles.label, { color: colors.text }]}>
-                  Frequency
-                </Text>
+            <View style={[styles.inputSection, { backgroundColor: colors.card }]}>
+              <View style={styles.sectionHeader}>
+                <View style={[styles.iconBadge, { backgroundColor: '#10B981' + '15' }]}>
+                  <Ionicons name="repeat" size={20} color="#10B981" />
+                </View>
+                <View style={styles.sectionHeaderText}>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                    Frequency
+                  </Text>
+                  <Text style={[styles.sectionSubtitle, { color: colors.subtleText }]}>
+                    How often should you take it?
+                  </Text>
+                </View>
                 <Text style={styles.required}>*</Text>
               </View>
-              <View style={styles.optionsGrid}>
+              <View style={styles.frequencyGrid}>
                 {frequencyOptions.map((option) => (
                   <TouchableOpacity
                     key={option.value}
                     style={[
-                      styles.optionCard,
+                      styles.frequencyCard,
                       { 
-                        backgroundColor: frequency === option.value ? colors.primary : colors.card,
+                        backgroundColor: frequency === option.value ? colors.primary : colors.background,
                         borderColor: frequency === option.value ? colors.primary : colors.borderColor,
                       }
                     ]}
                     onPress={() => handleFrequencyChange(option.value)}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.optionIcon}>{option.icon}</Text>
+                    <Ionicons 
+                      name={option.icon as any} 
+                      size={22} 
+                      color={frequency === option.value ? '#FFFFFF' : colors.primary}
+                    />
                     <Text style={[
-                      styles.optionText,
+                      styles.frequencyText,
                       { color: frequency === option.value ? '#FFFFFF' : colors.text }
                     ]}>
                       {option.label}
@@ -275,30 +328,41 @@ const AddMedicineScreen: React.FC = () => {
               </View>
             </View>
 
-            {/* Times */}
-            <View style={styles.inputGroup}>
-              <View style={styles.labelContainer}>
-                <Ionicons name="alarm" size={20} color={colors.primary} />
-                <Text style={[styles.label, { color: colors.text }]}>
-                  Reminder Times
-                </Text>
+            {/* Reminder Times */}
+            <View style={[styles.inputSection, { backgroundColor: colors.card }]}>
+              <View style={styles.sectionHeader}>
+                <View style={[styles.iconBadge, { backgroundColor: '#F59E0B' + '15' }]}>
+                  <Ionicons name="alarm" size={20} color="#F59E0B" />
+                </View>
+                <View style={styles.sectionHeaderText}>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                    Reminder Times
+                  </Text>
+                  <Text style={[styles.sectionSubtitle, { color: colors.subtleText }]}>
+                    When should we remind you?
+                  </Text>
+                </View>
                 <Text style={styles.required}>*</Text>
               </View>
-              <Text style={[styles.helperText, { color: colors.subtleText }]}>
-                Tap to set when you want to be reminded
-              </Text>
-              <View style={styles.timesContainer}>
+              <View style={styles.timesGrid}>
                 {renderTimeInputs()}
               </View>
             </View>
 
             {/* Food Timing */}
-            <View style={styles.inputGroup}>
-              <View style={styles.labelContainer}>
-                <Ionicons name="restaurant" size={20} color={colors.primary} />
-                <Text style={[styles.label, { color: colors.text }]}>
-                  Food Timing
-                </Text>
+            <View style={[styles.inputSection, { backgroundColor: colors.card }]}>
+              <View style={styles.sectionHeader}>
+                <View style={[styles.iconBadge, { backgroundColor: '#8B5CF6' + '15' }]}>
+                  <Ionicons name="restaurant" size={20} color="#8B5CF6" />
+                </View>
+                <View style={styles.sectionHeaderText}>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                    Food Timing
+                  </Text>
+                  <Text style={[styles.sectionSubtitle, { color: colors.subtleText }]}>
+                    Any food requirements?
+                  </Text>
+                </View>
               </View>
               <View style={styles.foodTimingGrid}>
                 {foodTimingOptions.map((option) => (
@@ -307,27 +371,32 @@ const AddMedicineScreen: React.FC = () => {
                     style={[
                       styles.foodTimingCard,
                       { 
-                        backgroundColor: foodTiming === option.value ? colors.primary : colors.card,
-                        borderColor: foodTiming === option.value ? colors.primary : colors.borderColor,
+                        backgroundColor: foodTiming === option.value ? option.color + '15' : colors.background,
+                        borderColor: foodTiming === option.value ? option.color : colors.borderColor,
                       }
                     ]}
                     onPress={() => setFoodTiming(option.value as any)}
                     activeOpacity={0.7}
                   >
-                    <Ionicons 
-                      name={option.icon as any} 
-                      size={28} 
-                      color={foodTiming === option.value ? '#FFFFFF' : colors.primary}
-                    />
+                    <View style={[
+                      styles.foodTimingIconWrapper,
+                      { backgroundColor: foodTiming === option.value ? option.color : colors.background }
+                    ]}>
+                      <Ionicons 
+                        name={option.icon as any} 
+                        size={24} 
+                        color={foodTiming === option.value ? '#FFFFFF' : option.color}
+                      />
+                    </View>
                     <Text style={[
                       styles.foodTimingLabel,
-                      { color: foodTiming === option.value ? '#FFFFFF' : colors.text }
+                      { color: foodTiming === option.value ? option.color : colors.text }
                     ]}>
                       {option.label}
                     </Text>
                     <Text style={[
                       styles.foodTimingDescription,
-                      { color: foodTiming === option.value ? '#FFFFFF' : colors.subtleText }
+                      { color: colors.subtleText }
                     ]}>
                       {option.description}
                     </Text>
@@ -336,21 +405,27 @@ const AddMedicineScreen: React.FC = () => {
               </View>
             </View>
 
-            {/* Description */}
-            <View style={styles.inputGroup}>
-              <View style={styles.labelContainer}>
-                <Ionicons name="document-text" size={20} color={colors.primary} />
-                <Text style={[styles.label, { color: colors.text }]}>
-                  Additional Notes
-                </Text>
-                <Text style={[styles.optional, { color: colors.subtleText }]}>(Optional)</Text>
+            {/* Additional Notes */}
+            <View style={[styles.inputSection, { backgroundColor: colors.card }]}>
+              <View style={styles.sectionHeader}>
+                <View style={[styles.iconBadge, { backgroundColor: '#6366F1' + '15' }]}>
+                  <Ionicons name="document-text" size={20} color="#6366F1" />
+                </View>
+                <View style={styles.sectionHeaderText}>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                    Additional Notes
+                  </Text>
+                  <Text style={[styles.sectionSubtitle, { color: colors.subtleText }]}>
+                    Any special instructions? (Optional)
+                  </Text>
+                </View>
               </View>
               <TextInput
                 style={[
                   styles.textArea,
-                  { backgroundColor: colors.card, color: colors.text, borderColor: colors.borderColor }
+                  { backgroundColor: colors.background, color: colors.text, borderColor: colors.borderColor }
                 ]}
-                placeholder="Side effects, special instructions, doctor's notes..."
+                placeholder="Side effects, doctor's notes, special instructions..."
                 placeholderTextColor={colors.subtleText}
                 value={description}
                 onChangeText={setDescription}
@@ -371,7 +446,11 @@ const AddMedicineScreen: React.FC = () => {
               disabled={isLoading}
               activeOpacity={0.8}
             >
-              <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
+              <Ionicons 
+                name={isLoading ? "hourglass-outline" : "checkmark-circle"} 
+                size={24} 
+                color="#FFFFFF" 
+              />
               <Text style={styles.submitButtonText}>
                 {isLoading ? 'Adding Medicine...' : 'Add Medicine'}
               </Text>
@@ -404,14 +483,23 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    borderBottomWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
   },
   backButton: {
     padding: 8,
     marginLeft: -8,
   },
+  headerCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontFamily: 'Manrope_700Bold',
   },
   placeholder: {
@@ -428,128 +516,174 @@ const styles = StyleSheet.create({
   },
   form: {
     padding: 20,
-    gap: 28,
+    gap: 20,
   },
-  inputGroup: {
+  inputSection: {
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
     gap: 12,
   },
-  labelContainer: {
-    flexDirection: 'row',
+  iconBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
   },
-  label: {
-    fontSize: 17,
-    fontFamily: 'Manrope_600SemiBold',
+  sectionHeaderText: {
+    flex: 1,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontFamily: 'Manrope_700Bold',
+    marginBottom: 2,
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    fontFamily: 'Manrope_500Medium',
+    lineHeight: 18,
   },
   required: {
     color: '#EF4444',
-    fontSize: 17,
-    fontFamily: 'Manrope_600SemiBold',
-  },
-  optional: {
-    fontSize: 14,
-    fontFamily: 'Manrope_400Regular',
-    marginLeft: 4,
-  },
-  helperText: {
-    fontSize: 14,
-    fontFamily: 'Manrope_400Regular',
-    marginTop: -4,
+    fontSize: 20,
+    fontFamily: 'Manrope_700Bold',
   },
   input: {
     height: 56,
     borderRadius: 14,
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     fontSize: 16,
-    borderWidth: 1.5,
-    fontFamily: 'Manrope_500Medium',
+    borderWidth: 2,
+    fontFamily: 'Manrope_600SemiBold',
   },
   textArea: {
     minHeight: 120,
     borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    borderWidth: 1.5,
-    fontFamily: 'Manrope_400Regular',
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    fontSize: 15,
+    borderWidth: 2,
+    fontFamily: 'Manrope_500Medium',
+    lineHeight: 22,
   },
-  optionsGrid: {
+  frequencyGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
   },
-  optionCard: {
-    paddingVertical: 14,
+  frequencyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 12,
     borderWidth: 2,
+    gap: 10,
+    minWidth: '47%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  frequencyText: {
+    fontSize: 14,
+    fontFamily: 'Manrope_600SemiBold',
+    flex: 1,
+  },
+  timesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  timeChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    minWidth: '47%',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingLeft: 10,
+    borderRadius: 14,
+    borderWidth: 2,
+    gap: 10,
+    minWidth: 130,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  optionIcon: {
-    fontSize: 20,
+  timeIconWrapper: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  optionText: {
-    fontSize: 15,
-    fontFamily: 'Manrope_600SemiBold',
+  timeChipText: {
+    fontSize: 17,
+    fontFamily: 'Manrope_700Bold',
     flex: 1,
   },
   foodTimingGrid: {
-    gap: 12,
-  },
-  foodTimingCard: {
-    padding: 18,
-    borderRadius: 14,
-    borderWidth: 2,
-    alignItems: 'center',
-    gap: 6,
-  },
-  foodTimingLabel: {
-    fontSize: 16,
-    fontFamily: 'Manrope_600SemiBold',
-    marginTop: 4,
-  },
-  foodTimingDescription: {
-    fontSize: 13,
-    fontFamily: 'Manrope_400Regular',
-    textAlign: 'center',
-  },
-  timesContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
   },
-  timeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: 2,
-    gap: 10,
-    minWidth: 140,
-  },
-  timeButtonText: {
-    fontSize: 18,
-    fontFamily: 'Manrope_700Bold',
+  foodTimingCard: {
     flex: 1,
+    minWidth: '47%',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 2,
+    alignItems: 'center',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  foodTimingIconWrapper: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  foodTimingLabel: {
+    fontSize: 15,
+    fontFamily: 'Manrope_700Bold',
+    textAlign: 'center',
+  },
+  foodTimingDescription: {
+    fontSize: 12,
+    fontFamily: 'Manrope_500Medium',
+    textAlign: 'center',
   },
   submitButton: {
     flexDirection: 'row',
     paddingVertical: 18,
-    borderRadius: 14,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 12,
-    gap: 10,
+    gap: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 8,
   },
   submitButtonDisabled: {
     opacity: 0.6,
@@ -558,6 +692,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontFamily: 'Manrope_700Bold',
+    letterSpacing: 0.5,
   },
 });
 

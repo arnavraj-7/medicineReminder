@@ -54,7 +54,7 @@ app.use('/api/medicines', authMiddleware, medicineRoutes);
 // --- Database Connection and Server Start ---
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
-    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+    app.listen(PORT, () => console.log(`Server running on port ${PORT} on render`));
   })
   .catch((error) => console.error('MongoDB connection error:', error));
 

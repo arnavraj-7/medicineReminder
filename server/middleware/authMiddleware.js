@@ -6,7 +6,7 @@ dotenv.config();
 
 export const authMiddleware = async (req, res, next) => {
   const authHeader = req.headers.authorization;
-
+  console.log("Auth middleware -AuthHeader:",authHeader);
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ error: "No token provided or token is malformed" });
   }

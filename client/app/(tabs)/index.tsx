@@ -11,17 +11,18 @@ import {
   Alert,
   ScrollView,
   Dimensions,
-  Linking // Import Linking
+  Linking,
+  Animated
 } from 'react-native';
-import { useRouter, useFocusEffect } from 'expo-router'; // Import useFocusEffect
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import apiClient from '../../api/apiClient';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuthStore } from '../../store/AuthStore';
 
 const { width } = Dimensions.get('window');
 
-// --- Helper function to check if a date is today ---
 const isToday = (someDate: Date) => {
   const today = new Date();
   return someDate.getDate() === today.getDate() &&
@@ -29,7 +30,6 @@ const isToday = (someDate: Date) => {
     someDate.getFullYear() === today.getFullYear();
 };
 
-// Interfaces (Medicine, HistoryEntry, etc.) remain the same
 interface Medicine {
   _id: string;
   name: string;
@@ -47,19 +47,30 @@ interface HistoryEntry {
   status: 'taken' | 'skipped';
 }
 
-interface UpcomingMedicine {
+interface MedicineByTime {
+  time: string;
   medicine: Medicine;
-  nextTime: string;
-  timeUntil: string;
-  isOverdue: boolean;
+  status: 'pending' | 'taken' | 'skipped' | 'overdue';
 }
 
+type TimeOfDay = 'morning' | 'afternoon' | 'evening' | 'night';
 
 const DashboardScreen: React.FC = () => {
   const [medicines, setMedicines] = useState<Medicine[]>([]);
-  const [upcomingMedicines, setUpcomingMedicines] = useState<UpcomingMedicine[]>([]);
+  const [medicinesByTimeOfDay, setMedicinesByTimeOfDay] = useState<{
+    morning: MedicineByTime[];
+    afternoon: MedicineByTime[];
+    evening: MedicineByTime[];
+    night: MedicineByTime[];
+  }>({
+    morning: [],
+    afternoon: [],
+    evening: [],
+    night: []
+  });
   const [refreshing, setRefreshing] = useState(false);
   const [greeting, setGreeting] = useState('');
+  const [currentTimeOfDay, setCurrentTimeOfDay] = useState<TimeOfDay>('morning');
   const { colors, theme } = useTheme();
   const { user } = useAuthStore();
   const router = useRouter();
@@ -72,86 +83,92 @@ const DashboardScreen: React.FC = () => {
     return 'Good Night';
   };
 
-  // --- REVISED AND CORRECTED LOGIC ---
-  const calculateUpcomingMedicines = (medicinesList: Medicine[]) => {
+  const getCurrentTimeOfDay = (): TimeOfDay => {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) return 'morning';
+    if (hour >= 12 && hour < 17) return 'afternoon';
+    if (hour >= 17 && hour < 21) return 'evening';
+    return 'night';
+  };
+
+  const getTimeOfDayForTime = (timeString: string): TimeOfDay => {
+    const [hours] = timeString.split(':').map(Number);
+    if (hours >= 5 && hours < 12) return 'morning';
+    if (hours >= 12 && hours < 17) return 'afternoon';
+    if (hours >= 17 && hours < 21) return 'evening';
+    return 'night';
+  };
+
+  const organizeMedicinesByTime = (medicinesList: Medicine[]) => {
     const now = new Date();
-    const upcoming: UpcomingMedicine[] = [];
+    const organized: {
+      morning: MedicineByTime[];
+      afternoon: MedicineByTime[];
+      evening: MedicineByTime[];
+      night: MedicineByTime[];
+    } = {
+      morning: [],
+      afternoon: [],
+      evening: [],
+      night: []
+    };
 
     medicinesList.forEach((medicine) => {
-      // Get a mutable count of actions taken today
-      let actionsTakenToday = medicine.history.filter(entry => 
-        isToday(new Date(entry.timestamp))
-      ).length;
-
-      // Sort times chronologically to handle them in order
-      const sortedTimes = [...medicine.times].sort();
-
-      sortedTimes.forEach((time) => {
+      medicine.times.forEach((time) => {
         const [hours, minutes] = time.split(':').map(Number);
-        const scheduledToday = new Date();
-        scheduledToday.setHours(hours, minutes, 0, 0);
+        const scheduledTime = new Date();
+        scheduledTime.setHours(hours, minutes, 0, 0);
 
-        // Check if this specific time slot has passed
-        if (scheduledToday < now) {
-          // If the time has passed, check if there's an action to account for it
-          if (actionsTakenToday > 0) {
-            // Assume this action was for this passed time slot
-            actionsTakenToday--; // Decrement the count
-            return; // Skip this time slot, it's been handled
-          }
+        // Check history for this specific time today
+        const takenToday = medicine.history.some(entry => {
+          const entryDate = new Date(entry.timestamp);
+          return isToday(entryDate) && 
+                 entryDate.getHours() === hours &&
+                 Math.abs(entryDate.getMinutes() - minutes) < 30 &&
+                 entry.status === 'taken';
+        });
+
+        const skippedToday = medicine.history.some(entry => {
+          const entryDate = new Date(entry.timestamp);
+          return isToday(entryDate) && 
+                 entryDate.getHours() === hours &&
+                 Math.abs(entryDate.getMinutes() - minutes) < 30 &&
+                 entry.status === 'skipped';
+        });
+
+        let status: 'pending' | 'taken' | 'skipped' | 'overdue' = 'pending';
+        
+        if (takenToday) {
+          status = 'taken';
+        } else if (skippedToday) {
+          status = 'skipped';
+        } else if (scheduledTime < now && (now.getTime() - scheduledTime.getTime()) > 30 * 60 * 1000) {
+          status = 'overdue';
         }
-        
-        // --- If the code reaches here, the dose is either upcoming or overdue ---
-        
-        const nextTime = new Date(scheduledToday);
-        // If the time has passed for today, it's for the next day unless it's overdue
-        if (nextTime <= now) {
-            // Check if it's genuinely overdue or just a past time for a future event
-            const isOverdueCheck = (now.getTime() - scheduledToday.getTime()) > 0;
-            if(!isOverdueCheck) {
-                nextTime.setDate(nextTime.getDate() + 1);
-            }
-        }
-        
-        const timeDiff = nextTime.getTime() - now.getTime();
-        const hoursUntil = Math.floor(timeDiff / (1000 * 60 * 60));
-        const minutesUntil = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
-        
-        let timeUntil = '';
-        if (hoursUntil > 0) {
-          timeUntil = `${hoursUntil}h ${minutesUntil}m`;
-        } else {
-          timeUntil = `${minutesUntil}m`;
-        }
-        
-        const isOverdue = now > scheduledToday && (now.getTime() - scheduledToday.getTime()) > 30 * 60 * 1000;
-        
-        upcoming.push({
+
+        const timeOfDay = getTimeOfDayForTime(time);
+        organized[timeOfDay].push({
+          time,
           medicine,
-          nextTime: time,
-          timeUntil: isOverdue ? 'Overdue' : (timeDiff < 0 ? 'Upcoming' : timeUntil),
-          isOverdue
+          status
         });
       });
     });
 
-    // Sort the final list
-    upcoming.sort((a, b) => {
-        if (a.isOverdue && !b.isOverdue) return -1;
-        if (!a.isOverdue && b.isOverdue) return 1;
-        return a.nextTime.localeCompare(b.nextTime);
+    // Sort each time period
+    Object.keys(organized).forEach(key => {
+      organized[key as TimeOfDay].sort((a, b) => a.time.localeCompare(b.time));
     });
 
-    return upcoming.slice(0, 5);
+    setMedicinesByTimeOfDay(organized);
   };
-
 
   const fetchMedicines = async () => {
     try {
       const response = await apiClient.get('/medicines');
       const medicinesData = response.data;
       setMedicines(medicinesData);
-      setUpcomingMedicines(calculateUpcomingMedicines(medicinesData));
+      organizeMedicinesByTime(medicinesData);
     } catch (error) {
       console.error('Failed to fetch medicines:', error);
       Alert.alert('Error', 'Failed to load medicines');
@@ -168,57 +185,53 @@ const DashboardScreen: React.FC = () => {
     useCallback(() => {
       fetchMedicines();
       setGreeting(getGreeting());
+      setCurrentTimeOfDay(getCurrentTimeOfDay());
     }, [])
   );
 
   const handleEmergencyCall = () => {
     const emergencyContactNumber = user?.emergencyContact;
-    // NOTE: This ambulance number should be localized for different regions.
-    const ambulanceNumber = '102'; 
+    const ambulanceNumber = '102';
 
     const alertButtons = [];
 
-    // Add the emergency contact option if it exists
     if (emergencyContactNumber) {
-        alertButtons.push({
-            text: `Call Emergency Contact (${emergencyContactNumber})`,
-            onPress: () => {
-                Linking.openURL(`tel:${emergencyContactNumber}`).catch(() => {
-                    Alert.alert('Error', 'Could not open the phone dialer.');
-                });
-            },
-        });
+      alertButtons.push({
+        text: `Emergency Contact`,
+        onPress: () => {
+          Linking.openURL(`tel:${emergencyContactNumber}`).catch(() => {
+            Alert.alert('Error', 'Could not open the phone dialer.');
+          });
+        },
+      });
     }
 
-    // Add the ambulance option
     alertButtons.push({
-        text: 'Call Ambulance',
-        onPress: () => {
-            Linking.openURL(`tel:${ambulanceNumber}`).catch(() => {
-                Alert.alert('Error', 'Could not open the phone dialer.');
-            });
-        },
+      text: 'Call Ambulance (102)',
+      onPress: () => {
+        Linking.openURL(`tel:${ambulanceNumber}`).catch(() => {
+          Alert.alert('Error', 'Could not open the phone dialer.');
+        });
+      },
     });
 
-    // Add the cancel button
     alertButtons.push({
-        text: 'Cancel',
-        style: 'cancel' as 'cancel',
+      text: 'Cancel',
+      style: 'cancel' as 'cancel',
     });
 
     Alert.alert(
-        'Emergency Call',
-        'Select an option to call for help.',
-        alertButtons,
-        { cancelable: true }
+      '🚨 Emergency',
+      'Choose who to call for immediate help',
+      alertButtons,
+      { cancelable: true }
     );
   };
 
   const markAsTaken = async (medicineId: string) => {
     try {
       await apiClient.post(`/medicines/history/${medicineId}`, { status: 'taken' });
-      await fetchMedicines(); 
-      Alert.alert('Success', 'Medicine marked as taken!');
+      await fetchMedicines();
     } catch (error) {
       Alert.alert('Error', 'Failed to update medicine status');
     }
@@ -227,138 +240,196 @@ const DashboardScreen: React.FC = () => {
   const markAsSkipped = async (medicineId: string) => {
     try {
       await apiClient.post(`/medicines/history/${medicineId}`, { status: 'skipped' });
-      await fetchMedicines(); 
-      Alert.alert('Medicine Skipped', 'Medicine marked as skipped');
+      await fetchMedicines();
     } catch (error) {
       Alert.alert('Error', 'Failed to update medicine status');
     }
   };
 
-  const deleteMedicine = async (medicineId: string, medicineName: string) => {
-    Alert.alert(
-      'Delete Medicine',
-      `Are you sure you want to delete ${medicineName}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await apiClient.delete(`/medicines/${medicineId}`);
-              await fetchMedicines();
-              Alert.alert('Success', 'Medicine deleted successfully');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to delete medicine');
-            }
-          }
-        }
-      ]
-    );
+  const getTimeOfDayIcon = (timeOfDay: TimeOfDay) => {
+    switch (timeOfDay) {
+      case 'morning': return 'sunny';
+      case 'afternoon': return 'partly-sunny';
+      case 'evening': return 'moon';
+      case 'night': return 'moon-outline';
+    }
   };
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setUpcomingMedicines(calculateUpcomingMedicines(medicines));
-    }, 60000);
+  const getTimeOfDayColor = (timeOfDay: TimeOfDay) => {
+    switch (timeOfDay) {
+      case 'morning': return '#FFA726';
+      case 'afternoon': return '#42A5F5';
+      case 'evening': return '#AB47BC';
+      case 'night': return '#5C6BC0';
+    }
+  };
 
-    return () => clearInterval(interval);
-  }, [medicines]);
+  const getTimeOfDayLabel = (timeOfDay: TimeOfDay) => {
+    switch (timeOfDay) {
+      case 'morning': return 'Morning (5 AM - 12 PM)';
+      case 'afternoon': return 'Afternoon (12 PM - 5 PM)';
+      case 'evening': return 'Evening (5 PM - 9 PM)';
+      case 'night': return 'Night (9 PM - 5 AM)';
+    }
+  };
 
-  const renderUpcomingMedicine = ({ item }: { item: UpcomingMedicine }) => (
-    <View style={[
-      styles.upcomingCard, 
-      { 
-        backgroundColor: colors.card,
-        borderLeftColor: item.isOverdue ? colors.error : colors.primary
-      }
-    ]}>
-      <View style={styles.upcomingHeader}>
-        <Text style={[styles.upcomingMedicineName, { color: colors.text }]}>
-          {item.medicine.name}
-        </Text>
-        <Text style={[
-          styles.upcomingTime, 
-          { color: item.isOverdue ? colors.error : colors.primary }
-        ]}>
-          {item.nextTime}
-        </Text>
-      </View>
-      <Text style={[styles.upcomingDosage, { color: colors.subtleText }]}>
-        {item.medicine.dosage}
-      </Text>
-      <Text style={[
-        styles.timeUntil, 
-        { color: item.isOverdue ? colors.error : colors.subtleText }
-      ]}>
-        {item.timeUntil}
-      </Text>
-      
-      <View style={styles.quickActions}>
-        <TouchableOpacity 
-          style={[styles.actionButton, { backgroundColor: colors.success }]}
-          onPress={() => markAsTaken(item.medicine._id)}
-        >
-          <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-          <Text style={styles.actionButtonText}>Take</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.actionButton, { backgroundColor: colors.warning }]}
-          onPress={() => markAsSkipped(item.medicine._id)}
-        >
-          <Ionicons name="close" size={16} color="#FFFFFF" />
-          <Text style={styles.actionButtonText}>Skip</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+  const getFoodTimingIcon = (foodTiming?: string) => {
+    switch (foodTiming) {
+      case 'before': return 'restaurant-outline';
+      case 'after': return 'restaurant';
+      case 'with': return 'fast-food-outline';
+      default: return 'checkmark-circle-outline';
+    }
+  };
 
-  const renderMedicine = ({ item }: { item: Medicine }) => {
-    const lastTaken = item.history.length > 0 
-      ? new Date(item.history[item.history.length - 1].timestamp).toLocaleDateString()
-      : 'Never';
-    
-    const foodTimingText = item.foodTiming ? 
-      ` • ${item.foodTiming.charAt(0).toUpperCase() + item.foodTiming.slice(1)} food` : '';
+  const renderMedicineItem = ({ item }: { item: MedicineByTime }) => {
+    const statusConfig = {
+      pending: { color: colors.warning, icon: 'time-outline', label: 'Pending' },
+      taken: { color: colors.success, icon: 'checkmark-circle', label: 'Taken' },
+      skipped: { color: colors.subtleText, icon: 'close-circle', label: 'Skipped' },
+      overdue: { color: colors.error, icon: 'alert-circle', label: 'Overdue' }
+    };
+
+    const config = statusConfig[item.status];
 
     return (
       <TouchableOpacity 
-        style={[styles.medicineCard, { backgroundColor: colors.card }]}
-        onPress={() => router.push(`/medicine/${item._id}`)}
+        style={[styles.medicineItem, { backgroundColor: colors.card }]}
+        onPress={() => router.push(`/medicine/${item.medicine._id}`)}
+        activeOpacity={0.7}
       >
-        <View style={styles.medicineHeader}>
-          <View style={styles.medicineInfo}>
-            <Text style={[styles.medicineName, { color: colors.text }]}>
-              {item.name}
-            </Text>
-            <Text style={[styles.medicineDosage, { color: colors.subtleText }]}>
-              {item.dosage} • {item.frequency}{foodTimingText}
-            </Text>
-            {item.description && (
-              <Text style={[styles.medicineDescription, { color: colors.subtleText }]} numberOfLines={2}>
-                {item.description}
-              </Text>
-            )}
-          </View>
-          <TouchableOpacity 
-            style={styles.deleteButton}
-            onPress={() => deleteMedicine(item._id, item.name)}
-          >
-            <Ionicons name="trash-outline" size={20} color={colors.error} />
-          </TouchableOpacity>
-        </View>
+        <View style={[styles.statusIndicator, { backgroundColor: config.color }]} />
         
-        <View style={styles.medicineFooter}>
-          <Text style={[styles.medicineTimes, { color: colors.primary }]}>
-            Times: {item.times.join(', ')}
+        <View style={styles.medicineItemContent}>
+          <View style={styles.medicineItemHeader}>
+            <View style={styles.medicineItemLeft}>
+              <Text style={[styles.medicineItemTime, { color: colors.primary }]}>
+                {item.time}
+              </Text>
+              <Ionicons 
+                name={getFoodTimingIcon(item.medicine.foodTiming)} 
+                size={16} 
+                color={colors.subtleText} 
+              />
+            </View>
+            <View style={[styles.statusBadge, { backgroundColor: config.color + '20' }]}>
+              <Ionicons name={config.icon as any} size={14} color={config.color} />
+              <Text style={[styles.statusText, { color: config.color }]}>
+                {config.label}
+              </Text>
+            </View>
+          </View>
+
+          <Text style={[styles.medicineItemName, { color: colors.text }]}>
+            {item.medicine.name}
           </Text>
-          <Text style={[styles.lastTaken, { color: colors.subtleText }]}>
-            Last taken: {lastTaken}
-          </Text>
+          
+          <View style={styles.medicineItemDetails}>
+            <View style={styles.detailItem}>
+              <Ionicons name="flask-outline" size={14} color={colors.subtleText} />
+              <Text style={[styles.detailText, { color: colors.subtleText }]}>
+                {item.medicine.dosage}
+              </Text>
+            </View>
+            <View style={styles.detailItem}>
+              <Ionicons name="repeat-outline" size={14} color={colors.subtleText} />
+              <Text style={[styles.detailText, { color: colors.subtleText }]}>
+                {item.medicine.frequency}
+              </Text>
+            </View>
+          </View>
+
+          {item.medicine.description && (
+            <Text style={[styles.medicineItemDescription, { color: colors.subtleText }]} numberOfLines={2}>
+              {item.medicine.description}
+            </Text>
+          )}
+
+          {item.status === 'pending' && (
+            <View style={styles.medicineItemActions}>
+              <TouchableOpacity 
+                style={[styles.miniActionButton, { backgroundColor: colors.success }]}
+                onPress={() => markAsTaken(item.medicine._id)}
+              >
+                <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                <Text style={styles.miniActionText}>Take</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.miniActionButton, { backgroundColor: colors.warning }]}
+                onPress={() => markAsSkipped(item.medicine._id)}
+              >
+                <Ionicons name="close" size={16} color="#FFFFFF" />
+                <Text style={styles.miniActionText}>Skip</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </TouchableOpacity>
     );
   };
+
+  const renderTimeSection = (timeOfDay: TimeOfDay) => {
+    const items = medicinesByTimeOfDay[timeOfDay];
+    if (items.length === 0) return null;
+
+    const pendingCount = items.filter(i => i.status === 'pending' || i.status === 'overdue').length;
+    const takenCount = items.filter(i => i.status === 'taken').length;
+    const isCurrentPeriod = currentTimeOfDay === timeOfDay;
+
+    return (
+      <View style={styles.timeSection}>
+        <View style={[
+          styles.timeSectionHeader,
+          isCurrentPeriod && { backgroundColor: getTimeOfDayColor(timeOfDay) + '15' }
+        ]}>
+          <View style={styles.timeSectionHeaderLeft}>
+            <View style={[styles.timeSectionIcon, { backgroundColor: getTimeOfDayColor(timeOfDay) + '20' }]}>
+              <Ionicons 
+                name={getTimeOfDayIcon(timeOfDay)} 
+                size={24} 
+                color={getTimeOfDayColor(timeOfDay)} 
+              />
+            </View>
+            <View>
+              <Text style={[styles.timeSectionTitle, { color: colors.text }]}>
+                {timeOfDay.charAt(0).toUpperCase() + timeOfDay.slice(1)}
+              </Text>
+              <Text style={[styles.timeSectionSubtitle, { color: colors.subtleText }]}>
+                {getTimeOfDayLabel(timeOfDay)}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.timeSectionStats}>
+            <View style={styles.statPill}>
+              <Text style={[styles.statPillText, { color: colors.text }]}>
+                {takenCount}/{items.length}
+              </Text>
+            </View>
+            {pendingCount > 0 && (
+              <View style={[styles.pendingPill, { backgroundColor: colors.error + '20' }]}>
+                <Text style={[styles.pendingPillText, { color: colors.error }]}>
+                  {pendingCount} pending
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+        
+        <FlatList
+          data={items}
+          keyExtractor={(item) => `${item.medicine._id}-${item.time}`}
+          renderItem={renderMedicineItem}
+          scrollEnabled={false}
+          contentContainerStyle={styles.medicineList}
+        />
+      </View>
+    );
+  };
+
+  const totalMedicines = medicines.length;
+  const totalDosesToday = Object.values(medicinesByTimeOfDay).flat().length;
+  const takenToday = Object.values(medicinesByTimeOfDay).flat().filter(m => m.status === 'taken').length;
+  const overdueCount = Object.values(medicinesByTimeOfDay).flat().filter(m => m.status === 'overdue').length;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -366,6 +437,7 @@ const DashboardScreen: React.FC = () => {
       
       <ScrollView 
         style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl 
             refreshing={refreshing} 
@@ -375,107 +447,99 @@ const DashboardScreen: React.FC = () => {
           />
         }
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={[styles.greeting, { color: colors.text }]}>
-              {greeting}!
-            </Text>
-            <Text style={[styles.userName, { color: colors.subtleText }]}>
-              {user?.name || user?.email || 'User'}
-            </Text>
-          </View>
-          <TouchableOpacity 
-            style={[styles.addButton, { backgroundColor: colors.error }]}
-            onPress={handleEmergencyCall}
-          >
-            <Ionicons name="call-outline" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Stats Cards */}
-        <View style={styles.statsContainer}>
-          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-            <Text style={[styles.statNumber, { color: colors.primary }]}>
-              {medicines.length}
-            </Text>
-            <Text style={[styles.statLabel, { color: colors.subtleText }]}>
-              Total Medicines
-            </Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-            <Text style={[styles.statNumber, { color: colors.success }]}>
-              {upcomingMedicines.filter(m => !m.isOverdue).length}
-            </Text>
-            <Text style={[styles.statLabel, { color: colors.subtleText }]}>
-              Upcoming Today
-            </Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-            <Text style={[styles.statNumber, { color: colors.error }]}>
-              {upcomingMedicines.filter(m => m.isOverdue).length}
-            </Text>
-            <Text style={[styles.statLabel, { color: colors.subtleText }]}>
-              Overdue
-            </Text>
-          </View>
-        </View>
-
-        {/* Upcoming Medicines */}
-        {upcomingMedicines.length > 0 && (
-          <>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Next Medicines
-            </Text>
-            <FlatList
-              data={upcomingMedicines}
-              keyExtractor={(item) => `${item.medicine._id}-${item.nextTime}`}
-              renderItem={renderUpcomingMedicine}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.upcomingList}
-            />
-          </>
-        )}
-
-        {/* All Medicines */}
-        <View style={styles.allMedicinesHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            All Medicines
-          </Text>
-          {medicines.length === 0 && (
+        {/* Premium Header */}
+        <View style={[styles.header, { backgroundColor: colors.card }]}>
+          <View style={styles.headerTop}>
+            <View>
+              <Text style={[styles.greeting, { color: colors.text }]}>
+                {greeting}!
+              </Text>
+              <Text style={[styles.userName, { color: colors.subtleText }]}>
+                {user?.name || user?.email || 'User'}
+              </Text>
+            </View>
             <TouchableOpacity 
-              style={[styles.addFirstButton, { backgroundColor: colors.primary }]}
-              onPress={() => router.push('/medicine/add')}
+              style={[styles.emergencyButton, { backgroundColor: colors.error }]}
+              onPress={handleEmergencyCall}
             >
-              <Text style={styles.addFirstButtonText}>Add First Medicine</Text>
+              <Ionicons name="call" size={22} color="#FFFFFF" />
             </TouchableOpacity>
+          </View>
+
+          {/* Compact Stats */}
+          <View style={styles.compactStats}>
+            <View style={styles.compactStatItem}>
+              <Text style={[styles.compactStatNumber, { color: colors.primary }]}>
+                {totalMedicines}
+              </Text>
+              <Text style={[styles.compactStatLabel, { color: colors.subtleText }]}>
+                Medicines
+              </Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.compactStatItem}>
+              <Text style={[styles.compactStatNumber, { color: colors.success }]}>
+                {takenToday}/{totalDosesToday}
+              </Text>
+              <Text style={[styles.compactStatLabel, { color: colors.subtleText }]}>
+                Taken Today
+              </Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.compactStatItem}>
+              <Text style={[styles.compactStatNumber, { color: colors.error }]}>
+                {overdueCount}
+              </Text>
+              <Text style={[styles.compactStatLabel, { color: colors.subtleText }]}>
+                Overdue
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Time-based Sections */}
+        <View style={styles.content}>
+          {totalDosesToday === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="medical-outline" size={80} color={colors.subtleText} />
+              <Text style={[styles.emptyStateTitle, { color: colors.text }]}>
+                No Medicines Yet
+              </Text>
+              <Text style={[styles.emptyStateText, { color: colors.subtleText }]}>
+                Start your health journey by adding your first medicine
+              </Text>
+              <TouchableOpacity 
+                style={[styles.addFirstButton, { backgroundColor: colors.primary }]}
+                onPress={() => router.push('/medicine/add')}
+              >
+                <Ionicons name="add-circle-outline" size={20} color="#FFFFFF" />
+                <Text style={styles.addFirstButtonText}>Add Medicine</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              {renderTimeSection('morning')}
+              {renderTimeSection('afternoon')}
+              {renderTimeSection('evening')}
+              {renderTimeSection('night')}
+            </>
           )}
         </View>
-
-        {medicines.length > 0 ? (
-          <FlatList
-            data={medicines}
-            keyExtractor={(item) => item._id}
-            renderItem={renderMedicine}
-            scrollEnabled={false}
-            contentContainerStyle={styles.medicinesList}
-          />
-        ) : (
-          <View style={styles.emptyState}>
-            <Ionicons name="medical-outline" size={64} color={colors.subtleText} />
-            <Text style={[styles.emptyStateText, { color: colors.subtleText }]}>
-              No medicines added yet
-            </Text>
-            <Text style={[styles.emptyStateSubtext, { color: colors.subtleText }]}>
-              Start tracking your medications by adding your first medicine
-            </Text>
-          </View>
-        )}
       </ScrollView>
+
+      {/* Floating Add Button */}
+      {medicines.length > 0 && (
+        <TouchableOpacity 
+          style={[styles.fab, { backgroundColor: colors.primary }]}
+          onPress={() => router.push('/medicine/add')}
+        >
+          <Ionicons name="add" size={28} color="#FFFFFF" />
+        </TouchableOpacity>
+      )}
     </SafeAreaView>
   );
 };
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -484,212 +548,265 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 20,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 24,
+    marginBottom: 20,
   },
   greeting: {
-    fontSize: 28,
-    fontFamily: 'Manrope_700Bold',
+    fontSize: 32,
+    fontFamily: 'Manrope_800ExtraBold',
     marginBottom: 4,
   },
   userName: {
     fontSize: 16,
-    fontFamily: 'Manrope_400Regular',
+    fontFamily: 'Manrope_500Medium',
   },
-  addButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  emergencyButton: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  statsContainer: {
+  compactStats: {
     flexDirection: 'row',
-    paddingHorizontal: 24,
-    marginBottom: 24,
-    gap: 12,
-  },
-  statCard: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 12,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    justifyContent: 'space-around',
   },
-  statNumber: {
+  compactStatItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  compactStatNumber: {
     fontSize: 24,
-    fontFamily: 'Manrope_700Bold',
+    fontFamily: 'Manrope_800ExtraBold',
     marginBottom: 4,
   },
-  statLabel: {
-    fontSize: 12,
-    fontFamily: 'Manrope_500Medium',
-    textAlign: 'center',
+  compactStatLabel: {
+    fontSize: 11,
+    fontFamily: 'Manrope_600SemiBold',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontFamily: 'Manrope_700Bold',
-    paddingHorizontal: 24,
-    marginBottom: 16,
+  statDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: '#E5E7EB',
+    opacity: 0.3,
   },
-  upcomingList: {
-    paddingHorizontal: 24,
-    marginBottom: 24,
-    gap: 12,
+  content: {
+    padding: 20,
   },
-  upcomingCard: {
-    width: width * 0.7,
-    padding: 16,
-    borderRadius: 12,
-    borderLeftWidth: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+  timeSection: {
+    marginBottom: 28,
   },
-  upcomingHeader: {
+  timeSectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
-  },
-  upcomingMedicineName: {
-    fontSize: 16,
-    fontFamily: 'Manrope_600SemiBold',
-    flex: 1,
-  },
-  upcomingTime: {
-    fontSize: 14,
-    fontFamily: 'Manrope_600SemiBold',
-  },
-  upcomingDosage: {
-    fontSize: 14,
-    fontFamily: 'Manrope_400Regular',
-    marginBottom: 4,
-  },
-  timeUntil: {
-    fontSize: 12,
-    fontFamily: 'Manrope_500Medium',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 16,
     marginBottom: 12,
   },
-  quickActions: {
+  timeSectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  timeSectionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timeSectionTitle: {
+    fontSize: 20,
+    fontFamily: 'Manrope_700Bold',
+    marginBottom: 2,
+  },
+  timeSectionSubtitle: {
+    fontSize: 12,
+    fontFamily: 'Manrope_500Medium',
+  },
+  timeSectionStats: {
     flexDirection: 'row',
     gap: 8,
   },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  statPill: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 6,
-    gap: 4,
+    borderRadius: 20,
+    backgroundColor: 'rgba(100, 116, 139, 0.1)',
   },
-  actionButtonText: {
-    color: '#FFFFFF',
+  statPillText: {
+    fontSize: 13,
+    fontFamily: 'Manrope_700Bold',
+  },
+  pendingPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  pendingPillText: {
+    fontSize: 13,
+    fontFamily: 'Manrope_700Bold',
+  },
+  medicineList: {
+    gap: 12,
+  },
+  medicineItem: {
+    flexDirection: 'row',
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  statusIndicator: {
+    width: 4,
+  },
+  medicineItemContent: {
+    flex: 1,
+    padding: 16,
+  },
+  medicineItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  medicineItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  medicineItemTime: {
+    fontSize: 16,
+    fontFamily: 'Manrope_700Bold',
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusText: {
     fontSize: 12,
     fontFamily: 'Manrope_600SemiBold',
   },
-  allMedicinesHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    marginBottom: 16,
-  },
-  addFirstButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  addFirstButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontFamily: 'Manrope_600SemiBold',
-  },
-  medicinesList: {
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-    gap: 12,
-  },
-  medicineCard: {
-    padding: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  medicineHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  medicineInfo: {
-    flex: 1,
-  },
-  medicineName: {
+  medicineItemName: {
     fontSize: 18,
-    fontFamily: 'Manrope_600SemiBold',
-    marginBottom: 4,
+    fontFamily: 'Manrope_700Bold',
+    marginBottom: 8,
   },
-  medicineDosage: {
-    fontSize: 14,
-    fontFamily: 'Manrope_400Regular',
-    marginBottom: 4,
+  medicineItemDetails: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 8,
   },
-  medicineDescription: {
+  detailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  detailText: {
+    fontSize: 13,
+    fontFamily: 'Manrope_500Medium',
+  },
+  medicineItemDescription: {
     fontSize: 13,
     fontFamily: 'Manrope_400Regular',
     lineHeight: 18,
+    marginBottom: 12,
   },
-  deleteButton: {
-    padding: 8,
+  medicineItemActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
   },
-  medicineFooter: {
-    gap: 4,
+  miniActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    gap: 6,
   },
-  medicineTimes: {
-    fontSize: 14,
-    fontFamily: 'Manrope_500Medium',
-  },
-  lastTaken: {
-    fontSize: 12,
-    fontFamily: 'Manrope_400Regular',
+  miniActionText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontFamily: 'Manrope_600SemiBold',
   },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 48,
+    paddingVertical: 80,
     paddingHorizontal: 24,
   },
-  emptyStateText: {
-    fontSize: 18,
-    fontFamily: 'Manrope_600SemiBold',
-    marginTop: 16,
+  emptyStateTitle: {
+    fontSize: 24,
+    fontFamily: 'Manrope_700Bold',
+    marginTop: 24,
     marginBottom: 8,
-    textAlign: 'center',
   },
-  emptyStateSubtext: {
-    fontSize: 14,
+  emptyStateText: {
+    fontSize: 15,
     fontFamily: 'Manrope_400Regular',
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 22,
+    marginBottom: 28,
+  },
+  addFirstButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+  },
+  addFirstButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontFamily: 'Manrope_600SemiBold',
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
   },
 });
 
 export default DashboardScreen;
-
