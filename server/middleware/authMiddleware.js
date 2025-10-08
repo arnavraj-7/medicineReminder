@@ -21,3 +21,5 @@ const authMiddleware = (req, res, next) => {
   req.user = { id: userId };
   next();
 };
+
+export default authMiddleware;
