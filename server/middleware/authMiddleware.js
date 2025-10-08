@@ -1,4 +1,5 @@
 const authMiddleware = (req, res, next) => {
+  console.log('Auth Middleware Invoked');
   // Check if a session exists and has a user property
   if (req.session && req.session.user) {
     console.log('User is authenticated:', req.session.user);
