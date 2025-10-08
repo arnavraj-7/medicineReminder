@@ -18,10 +18,16 @@ const app = express();
 const PORT = process.env.PORT || 6000;
 
 // --- Middleware ---
-app.use(cors({
-  origin: '*', // Your Expo app's URL
+  app.use(cors({
+  origin: [
+    'http://localhost:8081',               // for local Expo web preview
+    'exp://192.168.1.*:8081',              // for Expo mobile on LAN (replace * with your local IP)
+    'https://medicinereminder-mugz.onrender.com', // for deployed backend
+    'null'                                 // for requests from native mobile apps (no origin header)
+  ],
   credentials: true,
 }));
+
 app.use(express.json());
 app.use(cookieParser());
 
