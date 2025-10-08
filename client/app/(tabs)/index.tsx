@@ -153,7 +153,6 @@ const DashboardScreen: React.FC = () => {
       setMedicines(medicinesData);
       setUpcomingMedicines(calculateUpcomingMedicines(medicinesData));
     } catch (error) {
-      if(error.status===401){
       console.error('Failed to fetch medicines:', error);
       Alert.alert('Error', 'Failed to load medicines');
     }

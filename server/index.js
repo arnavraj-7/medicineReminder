@@ -19,13 +19,18 @@ const PORT = process.env.PORT || 6000;
 
 // --- Middleware ---
   app.use(cors({
-  origin: [
-    'http://localhost:8081',               // for local Expo web preview
-    'exp://192.168.1.*:8081',              // for Expo mobile on LAN (replace * with your local IP)
-    'https://medicinereminder-mugz.onrender.com', // for deployed backend
-    'null'                                 // for requests from native mobile apps (no origin header)
-  ],
-  credentials: true,
+  origin: (origin, callback) => {
+    const allowedOrigins = [
+      'http://localhost:8081', 
+      'https://medicinereminder-mugz.onrender.com'
+    ];
+    if (!origin) return callback(null, true); // allow mobile apps with no origin
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true
 }));
 
 app.use(express.json());
@@ -40,10 +45,11 @@ app.use(session({
     mongoUrl: process.env.MONGO_URI 
   }),
   cookie: {
-    secure: true, 
-    httpOnly: true, 
-    maxAge: 1000 * 60 * 60 * 24 * 7 
-  }
+  secure: true, // true only in production HTTPS
+  httpOnly: true,
+  sameSite: 'none', // allow cross-origin cookies
+  maxAge: 1000 * 60 * 60 * 24 * 7
+}
 }));
 
 // --- API Routes ---
