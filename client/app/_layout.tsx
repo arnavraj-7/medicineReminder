@@ -14,8 +14,10 @@ function RootLayoutNav() {
   const { isAuthenticated, isLoading, checkAuthStatus } = useAuthStore();
   const router = useRouter();
 
-  // On initial app load, call checkAuthStatus to see if there's an active session.
+
   useEffect(() => {
+    // Check the authentication status on app launch.
+    console.log("Checking auth status...");
     checkAuthStatus();
   }, []);
 

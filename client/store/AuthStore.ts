@@ -116,11 +116,13 @@ export const useAuthStore = create<AuthStore>()(
       checkAuthStatus: async () => {
         // This check runs on app startup. If a token exists, this API call will validate it.
         try {
-          // Assuming you have a '/users/me' or similar protected route
-          const response = await apiClient.get<User>('/users/me'); 
+         
+          const response = await apiClient.get<User>('/auth/verify'); 
+          console.log("Auth verified, user data:", response.data);
           set({ user: response.data, isAuthenticated: true, isLoading: false });
         } catch (error) {
           // If the call fails (e.g., 401), the token is invalid or expired.
+          console.log("No valid session found.");
           set({ user: null, sessionToken: null, refreshToken: null, isAuthenticated: false, isLoading: false });
         }
       },
