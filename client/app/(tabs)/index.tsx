@@ -12,14 +12,14 @@ import {
   ScrollView,
   Dimensions,
   Linking,
-  Animated
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import * as Notifications from 'expo-notifications';
 import apiClient from '../../api/apiClient';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuthStore } from '../../store/AuthStore';
+import NotificationService from '../../services/NotificationService';
 
 const { width } = Dimensions.get('window');
 
@@ -40,6 +40,7 @@ interface Medicine {
   description?: string;
   history: HistoryEntry[];
   createdAt?: string;
+  notificationIds?: string[];
 }
 
 interface HistoryEntry {
@@ -74,6 +75,47 @@ const DashboardScreen: React.FC = () => {
   const { colors, theme } = useTheme();
   const { user } = useAuthStore();
   const router = useRouter();
+
+  // Initialize notifications on mount
+  useEffect(() => {
+    initializeNotifications();
+    setupNotificationListeners();
+  }, []);
+
+  const initializeNotifications = async () => {
+    const hasPermission = await NotificationService.requestPermissions();
+    if (!hasPermission) {
+      Alert.alert(
+        'Notifications Disabled',
+        'Enable notifications to receive medicine reminders',
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
+  const setupNotificationListeners = () => {
+    // Listen for notifications when app is in foreground
+    const notificationListener = NotificationService.addNotificationReceivedListener(
+      (notification) => {
+        console.log('Notification received:', notification);
+      }
+    );
+
+    // Listen for notification taps
+    const responseListener = NotificationService.addNotificationResponseReceivedListener(
+      (response) => {
+        const medicineId = response.notification.request.content.data?.medicineId;
+        if (medicineId) {
+          router.push(`/medicine/${medicineId}`);
+        }
+      }
+    );
+
+    return () => {
+      notificationListener.remove();
+      responseListener.remove();
+    };
+  };
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -119,7 +161,6 @@ const DashboardScreen: React.FC = () => {
         const scheduledTime = new Date();
         scheduledTime.setHours(hours, minutes, 0, 0);
 
-        // Check history for this specific time today
         const takenToday = medicine.history.some(entry => {
           const entryDate = new Date(entry.timestamp);
           return isToday(entryDate) && 
@@ -155,7 +196,6 @@ const DashboardScreen: React.FC = () => {
       });
     });
 
-    // Sort each time period
     Object.keys(organized).forEach(key => {
       organized[key as TimeOfDay].sort((a, b) => a.time.localeCompare(b.time));
     });
@@ -228,18 +268,34 @@ const DashboardScreen: React.FC = () => {
     );
   };
 
-  const markAsTaken = async (medicineId: string) => {
+  const markAsTaken = async (medicineId: string, time: string) => {
     try {
       await apiClient.post(`/medicines/history/${medicineId}`, { status: 'taken' });
+      
+      // Send confirmation notification
+      await NotificationService.sendImmediateNotification({
+        title: '✅ Medicine Taken',
+        body: `Great! You've taken your medicine at ${time}`,
+        data: { medicineId, action: 'taken' }
+      });
+      
       await fetchMedicines();
     } catch (error) {
       Alert.alert('Error', 'Failed to update medicine status');
     }
   };
 
-  const markAsSkipped = async (medicineId: string) => {
+  const markAsSkipped = async (medicineId: string, time: string) => {
     try {
       await apiClient.post(`/medicines/history/${medicineId}`, { status: 'skipped' });
+      
+      // Send reminder notification
+      await NotificationService.sendImmediateNotification({
+        title: '⚠️ Medicine Skipped',
+        body: `You skipped your medicine at ${time}. Don't forget next time!`,
+        data: { medicineId, action: 'skipped' }
+      });
+      
       await fetchMedicines();
     } catch (error) {
       Alert.alert('Error', 'Failed to update medicine status');
@@ -349,14 +405,14 @@ const DashboardScreen: React.FC = () => {
             <View style={styles.medicineItemActions}>
               <TouchableOpacity 
                 style={[styles.miniActionButton, { backgroundColor: colors.success }]}
-                onPress={() => markAsTaken(item.medicine._id)}
+                onPress={() => markAsTaken(item.medicine._id, item.time)}
               >
                 <Ionicons name="checkmark" size={16} color="#FFFFFF" />
                 <Text style={styles.miniActionText}>Take</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={[styles.miniActionButton, { backgroundColor: colors.warning }]}
-                onPress={() => markAsSkipped(item.medicine._id)}
+                onPress={() => markAsSkipped(item.medicine._id, item.time)}
               >
                 <Ionicons name="close" size={16} color="#FFFFFF" />
                 <Text style={styles.miniActionText}>Skip</Text>
@@ -447,7 +503,6 @@ const DashboardScreen: React.FC = () => {
           />
         }
       >
-        {/* Premium Header */}
         <View style={[styles.header, { backgroundColor: colors.card }]}>
           <View style={styles.headerTop}>
             <View>
@@ -466,7 +521,6 @@ const DashboardScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          {/* Compact Stats */}
           <View style={styles.compactStats}>
             <View style={styles.compactStatItem}>
               <Text style={[styles.compactStatNumber, { color: colors.primary }]}>
@@ -497,7 +551,6 @@ const DashboardScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Time-based Sections */}
         <View style={styles.content}>
           {totalDosesToday === 0 ? (
             <View style={styles.emptyState}>
@@ -527,7 +580,6 @@ const DashboardScreen: React.FC = () => {
         </View>
       </ScrollView>
 
-      {/* Floating Add Button */}
       {medicines.length > 0 && (
         <TouchableOpacity 
           style={[styles.fab, { backgroundColor: colors.primary }]}

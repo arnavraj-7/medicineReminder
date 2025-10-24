@@ -27,6 +27,24 @@ const TabsLayout = () => {
         }}
       />
       <Tabs.Screen
+        name="ai"
+        options={{
+          title: 'AI',
+          tabBarIcon: ({ focused, color, size }) => (
+            <Ionicons name={focused ? 'analytics' : 'analytics-outline'} color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="medicine"
+        options={{
+          title: 'Medicine',
+          tabBarIcon: ({ focused, color, size }) => (
+            <Ionicons name={focused ? 'medkit' : 'medkit-outline'} color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',
