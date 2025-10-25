@@ -27,8 +27,8 @@
 import axios from 'axios';
 import { useAuthStore } from '../store/AuthStore';
 
-// const API_BASE_URL = 'https://medicinereminder-mugz.onrender.com/api'; 
-const API_BASE_URL = 'http://192.168.29.210:6000/api'; 
+const API_BASE_URL = 'https://medicinereminder-mugz.onrender.com/api'; 
+// const API_BASE_URL = 'http://192.168.29.210:6000/api'; 
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,

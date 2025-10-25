@@ -12,6 +12,7 @@ import {
   ScrollView,
   Dimensions,
   Linking,
+  Pressable,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -421,7 +422,9 @@ const DashboardScreen: React.FC = () => {
 
         <View style={styles.medicineList}>
           {medicines.map((item, index) => (
-            <View key={`${item.medicine._id}-${item.time}-${index}`} style={[
+            <Pressable 
+            onPress={()=>router.push(`/medicine/${item.medicine._id}`)}
+            key={`${item.medicine._id}-${item.time}-${index}`} style={[
               styles.medicineItem,
               { backgroundColor: colors.cardBg }
             ]}>
@@ -502,7 +505,7 @@ const DashboardScreen: React.FC = () => {
                   </View>
                 )}
               </View>
-            </View>
+            </Pressable>
           ))}
         </View>
       </View>

@@ -1,6 +1,7 @@
 // src/store/ChatStore.ts
 import { create } from 'zustand';
 import apiClient from '../api/apiClient';
+import NotificationService from '../services/NotificationService'; // ✅ ADD THIS IMPORT
 
 interface Message {
   id: string;
@@ -137,6 +138,51 @@ export const useChatStore = create<ChatState>((set, get) => {
         if (response.data.toolResults) {
           console.log("🔧 Tools executed:", response.data.toolResults);
         }
+
+        // ✅✅✅ ADD THIS SECTION - Schedule notifications if medicines were added ✅✅✅
+        if (response.data.toolResults) {
+          const addMedicineResult = response.data.toolResults.find(
+            (tool: any) => tool.toolName === 'add_medicine'
+          );
+
+          if (addMedicineResult && addMedicineResult.result.success) {
+            console.log('🎯 AI added medicines, scheduling notifications...');
+            
+            const addedMedicines = addMedicineResult.result.medicines
+              .filter((m: any) => m.success)
+              .map((m: any) => m.medicine);
+
+            let successCount = 0;
+            for (const med of addedMedicines) {
+              try {
+                await NotificationService.scheduleMedicineReminders(
+                  med.name,
+                  med.times,
+                  med._id || med.id
+                );
+                successCount++;
+                console.log(`✅ Scheduled notifications for ${med.name}`);
+              } catch (error) {
+                console.error(`❌ Failed to schedule notifications for ${med.name}:`, error);
+              }
+            }
+
+            // Optionally add a system message to chat
+            if (successCount > 0) {
+              const notificationConfirmMessage: Message = {
+                id: (Date.now() + 2).toString(),
+                role: 'assistant',
+                content: `✅ Successfully scheduled ${successCount} reminder notification${successCount > 1 ? 's' : ''}!`,
+                timestamp: new Date(),
+              };
+
+              set((state) => ({
+                messages: [...state.messages, notificationConfirmMessage],
+              }));
+            }
+          }
+        }
+        // ✅✅✅ END OF NOTIFICATION SCHEDULING SECTION ✅✅✅
 
       } catch (error: any) {
         console.error('❌ Error sending message:', error);
