@@ -18,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import apiClient from '../../api/apiClient';
 import { useTheme } from '../../context/ThemeContext';
-// import NotificationService from '@/services/NotificationService';
+import NotificationService from '../../services/NotificationService';
 
 interface Medicine {
   _id: string;
@@ -170,15 +170,18 @@ const MedicineDetailScreen: React.FC = () => {
       const response = await apiClient.put(`/medicines/${id}`, updatedData);
       setMedicine(response.data);
       
-      // // Cancel old notifications and schedule new ones
-      // await NotificationService.cancelMedicineNotifications(id as string);
-      // await NotificationService.scheduleMedicineNotifications({
-      //   _id: id as string,
-      //   name: updatedData.name,
-      //   dosage: updatedData.dosage,
-      //   times: updatedData.times,
-      //   foodTiming: updatedData.foodTiming,
-      // });
+      // Cancel old notifications and schedule new ones
+      try {
+        await NotificationService.cancelNotificationsByMedicineId(id as string);
+        await NotificationService.scheduleMedicineReminders(
+          updatedData.name,
+          updatedData.times,
+          id as string
+        );
+        console.log('✅ Updated notifications for medicine');
+      } catch (notificationError) {
+        console.error('Failed to update notifications:', notificationError);
+      }
       
       setIsEditing(false);
       Alert.alert('Success', 'Medicine updated successfully!');
@@ -193,7 +196,7 @@ const MedicineDetailScreen: React.FC = () => {
   const handleDelete = () => {
     Alert.alert(
       'Delete Medicine',
-      `Are you sure you want to delete ${medicine?.name}?`,
+      `Are you sure you want to delete ${medicine?.name}? All reminders will be cancelled.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -201,12 +204,18 @@ const MedicineDetailScreen: React.FC = () => {
           style: 'destructive',
           onPress: async () => {
             try {
+              // Cancel all notifications for this medicine FIRST
+              await NotificationService.cancelNotificationsByMedicineId(id as string);
+              console.log('✅ Cancelled all notifications for medicine');
+              
+              // Then delete the medicine from database
               await apiClient.delete(`/medicines/${id}`);
-              // await NotificationService.cancelMedicineNotifications(id as string);
-              Alert.alert('Success', 'Medicine deleted successfully', [
+              
+              Alert.alert('Success', 'Medicine and all reminders deleted successfully', [
                 { text: 'OK', onPress: () => router.back() }
               ]);
             } catch (error) {
+              console.error('Failed to delete medicine:', error);
               Alert.alert('Error', 'Failed to delete medicine');
             }
           }

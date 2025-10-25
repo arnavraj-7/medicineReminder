@@ -3,12 +3,11 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import session from 'express-session';
-import MongoStore from 'connect-mongo';
-
+import fs from 'fs';
 // --- Route Imports ---
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
+import aiRoutes from './routes/aiRoutes.js';
 import medicineRoutes from './routes/medicineRoutes.js';
 import authMiddleware from './middleware/authMiddleware.js';
 
@@ -40,14 +39,24 @@ app.use(cookieParser());
 // }));
 
 // --- API Routes ---
+app.use((req, res, next) => {
+  console.log(`➡️ ${req.method} ${req.originalUrl}`);
+  next();
+});
 // Public routes for authentication
 app.use('/api/auth', authRoutes);
 
 // Protected routes that require a valid session
 app.use('/api/users', authMiddleware, userRoutes);
 app.use('/api/medicines', authMiddleware, medicineRoutes);
+app.use('/api/chat', authMiddleware,  aiRoutes);
 
-
+// Create uploads directory if it doesn't exist
+const uploadsDir = './uploads';
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  console.log('✅ Created uploads directory');
+}
 // --- Database Connection and Server Start ---
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {

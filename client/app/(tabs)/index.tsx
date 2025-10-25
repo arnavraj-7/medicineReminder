@@ -21,7 +21,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuthStore } from '../../store/AuthStore';
 import NotificationService from '../../services/NotificationService';
 
-const { width } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const isToday = (someDate: Date) => {
   const today = new Date();
@@ -72,9 +72,19 @@ const DashboardScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [greeting, setGreeting] = useState('');
   const [currentTimeOfDay, setCurrentTimeOfDay] = useState<TimeOfDay>('morning');
-  const { colors, theme } = useTheme();
+  const { colors: themeColors, theme } = useTheme();
   const { user } = useAuthStore();
   const router = useRouter();
+
+  // Map theme colors to match what the component expects
+  const colors = {
+    bg: themeColors.background,
+    cardBg: themeColors.card,
+    text: themeColors.text,
+    subtleText: themeColors.subtleText,
+    primary: themeColors.primary,
+    headerBg: themeColors.card,
+  };
 
   // Initialize notifications on mount
   useEffect(() => {
@@ -313,239 +323,260 @@ const DashboardScreen: React.FC = () => {
 
   const getTimeOfDayColor = (timeOfDay: TimeOfDay) => {
     switch (timeOfDay) {
-      case 'morning': return '#FFA726';
-      case 'afternoon': return '#42A5F5';
-      case 'evening': return '#AB47BC';
-      case 'night': return '#5C6BC0';
+      case 'morning': return '#F59E0B';
+      case 'afternoon': return '#F97316';
+      case 'evening': return '#8B5CF6';
+      case 'night': return '#6366F1';
     }
   };
 
-  const getTimeOfDayLabel = (timeOfDay: TimeOfDay) => {
+  const getTimeRangeText = (timeOfDay: TimeOfDay) => {
     switch (timeOfDay) {
-      case 'morning': return 'Morning (5 AM - 12 PM)';
-      case 'afternoon': return 'Afternoon (12 PM - 5 PM)';
-      case 'evening': return 'Evening (5 PM - 9 PM)';
-      case 'night': return 'Night (9 PM - 5 AM)';
+      case 'morning': return '5:00 AM - 12:00 PM';
+      case 'afternoon': return '12:00 PM - 5:00 PM';
+      case 'evening': return '5:00 PM - 9:00 PM';
+      case 'night': return '9:00 PM - 5:00 AM';
     }
   };
 
-  const getFoodTimingIcon = (foodTiming?: string) => {
-    switch (foodTiming) {
-      case 'before': return 'restaurant-outline';
-      case 'after': return 'restaurant';
-      case 'with': return 'fast-food-outline';
-      default: return 'checkmark-circle-outline';
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'taken': return '#10B981';
+      case 'skipped': return '#EF4444';
+      case 'overdue': return '#F59E0B';
+      default: return '#6B7280';
     }
   };
 
-  const renderMedicineItem = ({ item }: { item: MedicineByTime }) => {
-    const statusConfig = {
-      pending: { color: colors.warning, icon: 'time-outline', label: 'Pending' },
-      taken: { color: colors.success, icon: 'checkmark-circle', label: 'Taken' },
-      skipped: { color: colors.subtleText, icon: 'close-circle', label: 'Skipped' },
-      overdue: { color: colors.error, icon: 'alert-circle', label: 'Overdue' }
-    };
-
-    const config = statusConfig[item.status];
-
-    return (
-      <TouchableOpacity 
-        style={[styles.medicineItem, { backgroundColor: colors.card }]}
-        onPress={() => router.push(`/medicine/${item.medicine._id}`)}
-        activeOpacity={0.7}
-      >
-        <View style={[styles.statusIndicator, { backgroundColor: config.color }]} />
-        
-        <View style={styles.medicineItemContent}>
-          <View style={styles.medicineItemHeader}>
-            <View style={styles.medicineItemLeft}>
-              <Text style={[styles.medicineItemTime, { color: colors.primary }]}>
-                {item.time}
-              </Text>
-              <Ionicons 
-                name={getFoodTimingIcon(item.medicine.foodTiming)} 
-                size={16} 
-                color={colors.subtleText} 
-              />
-            </View>
-            <View style={[styles.statusBadge, { backgroundColor: config.color + '20' }]}>
-              <Ionicons name={config.icon as any} size={14} color={config.color} />
-              <Text style={[styles.statusText, { color: config.color }]}>
-                {config.label}
-              </Text>
-            </View>
-          </View>
-
-          <Text style={[styles.medicineItemName, { color: colors.text }]}>
-            {item.medicine.name}
-          </Text>
-          
-          <View style={styles.medicineItemDetails}>
-            <View style={styles.detailItem}>
-              <Ionicons name="flask-outline" size={14} color={colors.subtleText} />
-              <Text style={[styles.detailText, { color: colors.subtleText }]}>
-                {item.medicine.dosage}
-              </Text>
-            </View>
-            <View style={styles.detailItem}>
-              <Ionicons name="repeat-outline" size={14} color={colors.subtleText} />
-              <Text style={[styles.detailText, { color: colors.subtleText }]}>
-                {item.medicine.frequency}
-              </Text>
-            </View>
-          </View>
-
-          {item.medicine.description && (
-            <Text style={[styles.medicineItemDescription, { color: colors.subtleText }]} numberOfLines={2}>
-              {item.medicine.description}
-            </Text>
-          )}
-
-          {item.status === 'pending' && (
-            <View style={styles.medicineItemActions}>
-              <TouchableOpacity 
-                style={[styles.miniActionButton, { backgroundColor: colors.success }]}
-                onPress={() => markAsTaken(item.medicine._id, item.time)}
-              >
-                <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-                <Text style={styles.miniActionText}>Take</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.miniActionButton, { backgroundColor: colors.warning }]}
-                onPress={() => markAsSkipped(item.medicine._id, item.time)}
-              >
-                <Ionicons name="close" size={16} color="#FFFFFF" />
-                <Text style={styles.miniActionText}>Skip</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-      </TouchableOpacity>
-    );
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'taken': return 'checkmark-circle';
+      case 'skipped': return 'close-circle';
+      case 'overdue': return 'alert-circle';
+      default: return 'time';
+    }
   };
+
+  const totalDosesToday = Object.values(medicinesByTimeOfDay).reduce(
+    (acc, timeSlot) => acc + timeSlot.length,
+    0
+  );
+
+  const takenDosesToday = Object.values(medicinesByTimeOfDay).reduce(
+    (acc, timeSlot) => acc + timeSlot.filter(m => m.status === 'taken').length,
+    0
+  );
+
+  const pendingDosesToday = Object.values(medicinesByTimeOfDay).reduce(
+    (acc, timeSlot) => acc + timeSlot.filter(m => m.status === 'pending' || m.status === 'overdue').length,
+    0
+  );
 
   const renderTimeSection = (timeOfDay: TimeOfDay) => {
-    const items = medicinesByTimeOfDay[timeOfDay];
-    if (items.length === 0) return null;
+    const medicines = medicinesByTimeOfDay[timeOfDay];
+    if (medicines.length === 0) return null;
 
-    const pendingCount = items.filter(i => i.status === 'pending' || i.status === 'overdue').length;
-    const takenCount = items.filter(i => i.status === 'taken').length;
-    const isCurrentPeriod = currentTimeOfDay === timeOfDay;
+    const sectionColor = getTimeOfDayColor(timeOfDay);
+    const pendingCount = medicines.filter(m => m.status === 'pending' || m.status === 'overdue').length;
+    const takenCount = medicines.filter(m => m.status === 'taken').length;
+    const isCurrentTime = currentTimeOfDay === timeOfDay;
 
     return (
-      <View style={styles.timeSection}>
+      <View key={timeOfDay} style={styles.timeSection}>
         <View style={[
           styles.timeSectionHeader,
-          isCurrentPeriod && { backgroundColor: getTimeOfDayColor(timeOfDay) + '15' }
+          { backgroundColor: colors.cardBg },
+          isCurrentTime && { borderWidth: 2, borderColor: sectionColor }
         ]}>
           <View style={styles.timeSectionHeaderLeft}>
-            <View style={[styles.timeSectionIcon, { backgroundColor: getTimeOfDayColor(timeOfDay) + '20' }]}>
-              <Ionicons 
-                name={getTimeOfDayIcon(timeOfDay)} 
-                size={24} 
-                color={getTimeOfDayColor(timeOfDay)} 
-              />
+            <View style={[styles.timeSectionIcon, { backgroundColor: `${sectionColor}25` }]}>
+              <Ionicons name={getTimeOfDayIcon(timeOfDay)} size={24} color={sectionColor} />
             </View>
-            <View>
+            <View style={styles.timeSectionTextContainer}>
               <Text style={[styles.timeSectionTitle, { color: colors.text }]}>
                 {timeOfDay.charAt(0).toUpperCase() + timeOfDay.slice(1)}
               </Text>
               <Text style={[styles.timeSectionSubtitle, { color: colors.subtleText }]}>
-                {getTimeOfDayLabel(timeOfDay)}
+                {getTimeRangeText(timeOfDay)}
               </Text>
             </View>
           </View>
           <View style={styles.timeSectionStats}>
-            <View style={styles.statPill}>
-              <Text style={[styles.statPillText, { color: colors.text }]}>
-                {takenCount}/{items.length}
-              </Text>
-            </View>
+            {takenCount > 0 && (
+              <View style={[styles.statPill, { backgroundColor: '#10B98115' }]}>
+                <Text style={[styles.statPillText, { color: '#10B981' }]}>
+                  {takenCount}
+                </Text>
+              </View>
+            )}
             {pendingCount > 0 && (
-              <View style={[styles.pendingPill, { backgroundColor: colors.error + '20' }]}>
-                <Text style={[styles.pendingPillText, { color: colors.error }]}>
-                  {pendingCount} pending
+              <View style={[styles.pendingPill, { backgroundColor: `${sectionColor}25` }]}>
+                <Text style={[styles.pendingPillText, { color: sectionColor }]}>
+                  {pendingCount}
                 </Text>
               </View>
             )}
           </View>
         </View>
-        
-        <FlatList
-          data={items}
-          keyExtractor={(item) => `${item.medicine._id}-${item.time}`}
-          renderItem={renderMedicineItem}
-          scrollEnabled={false}
-          contentContainerStyle={styles.medicineList}
-        />
+
+        <View style={styles.medicineList}>
+          {medicines.map((item, index) => (
+            <View key={`${item.medicine._id}-${item.time}-${index}`} style={[
+              styles.medicineItem,
+              { backgroundColor: colors.cardBg }
+            ]}>
+              <View style={[styles.statusIndicator, { backgroundColor: getStatusColor(item.status) }]} />
+              <View style={styles.medicineItemContent}>
+                <View style={styles.medicineItemHeader}>
+                  <View style={styles.medicineItemLeft}>
+                    <Ionicons name="time-outline" size={18} color={colors.subtleText} />
+                    <Text style={[styles.medicineItemTime, { color: colors.text }]}>
+                      {item.time}
+                    </Text>
+                  </View>
+                  <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(item.status)}15` }]}>
+                    <Ionicons name={getStatusIcon(item.status)} size={14} color={getStatusColor(item.status)} />
+                    <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
+                      {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text 
+                  style={[styles.medicineItemName, { color: colors.text }]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {item.medicine.name}
+                </Text>
+
+                <View style={styles.medicineItemDetails}>
+                  <View style={styles.detailItem}>
+                    <Ionicons name="medical-outline" size={14} color={colors.subtleText} />
+                    <Text 
+                      style={[styles.detailText, { color: colors.subtleText }]}
+                      numberOfLines={1}
+                    >
+                      {item.medicine.dosage}
+                    </Text>
+                  </View>
+                  {item.medicine.foodTiming && (
+                    <View style={styles.detailItem}>
+                      <Ionicons name="restaurant-outline" size={14} color={colors.subtleText} />
+                      <Text 
+                        style={[styles.detailText, { color: colors.subtleText }]}
+                        numberOfLines={1}
+                      >
+                        {item.medicine.foodTiming}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {item.medicine.description && (
+                  <Text 
+                    style={[styles.medicineItemDescription, { color: colors.subtleText }]}
+                    numberOfLines={2}
+                    ellipsizeMode="tail"
+                  >
+                    {item.medicine.description}
+                  </Text>
+                )}
+
+                {item.status !== 'taken' && item.status !== 'skipped' && (
+                  <View style={styles.medicineItemActions}>
+                    <TouchableOpacity
+                      style={[styles.miniActionButton, { backgroundColor: '#10B981' }]}
+                      onPress={() => markAsTaken(item.medicine._id, item.time)}
+                    >
+                      <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                      <Text style={styles.miniActionText}>Taken</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.miniActionButton, { backgroundColor: '#EF4444' }]}
+                      onPress={() => markAsSkipped(item.medicine._id, item.time)}
+                    >
+                      <Ionicons name="close" size={14} color="#FFFFFF" />
+                      <Text style={styles.miniActionText}>Skip</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            </View>
+          ))}
+        </View>
       </View>
     );
   };
 
-  const totalMedicines = medicines.length;
-  const totalDosesToday = Object.values(medicinesByTimeOfDay).flat().length;
-  const takenToday = Object.values(medicinesByTimeOfDay).flat().filter(m => m.status === 'taken').length;
-  const overdueCount = Object.values(medicinesByTimeOfDay).flat().filter(m => m.status === 'overdue').length;
-
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} />
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
+      <StatusBar 
+        barStyle={theme === 'dark' ? 'light-content' : 'dark-content'}
+        backgroundColor={colors.headerBg}
+      />
       
       <ScrollView 
         style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollViewContent}
         refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
+          <RefreshControl
+            refreshing={refreshing}
             onRefresh={onRefresh}
             colors={[colors.primary]}
             tintColor={colors.primary}
           />
         }
+        showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.header, { backgroundColor: colors.card }]}>
+        <View style={[styles.header, { backgroundColor: colors.headerBg }]}>
           <View style={styles.headerTop}>
-            <View>
-              <Text style={[styles.greeting, { color: colors.text }]}>
-                {greeting}!
+            <View style={styles.greetingContainer}>
+              <Text style={[styles.greeting, { color: colors.text }]} numberOfLines={1}>
+                {greeting}
               </Text>
-              <Text style={[styles.userName, { color: colors.subtleText }]}>
-                {user?.name || user?.email || 'User'}
+              <Text 
+                style={[styles.userName, { color: colors.subtleText }]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {user?.name || 'User'}
               </Text>
             </View>
             <TouchableOpacity 
-              style={[styles.emergencyButton, { backgroundColor: colors.error }]}
+              style={[styles.emergencyButton, { backgroundColor: '#EF4444' }]}
               onPress={handleEmergencyCall}
+              activeOpacity={0.8}
             >
-              <Ionicons name="call" size={22} color="#FFFFFF" />
+              <Ionicons name="medkit" size={24} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
 
           <View style={styles.compactStats}>
             <View style={styles.compactStatItem}>
               <Text style={[styles.compactStatNumber, { color: colors.primary }]}>
-                {totalMedicines}
+                {totalDosesToday}
               </Text>
               <Text style={[styles.compactStatLabel, { color: colors.subtleText }]}>
-                Medicines
+                Total
               </Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.compactStatItem}>
-              <Text style={[styles.compactStatNumber, { color: colors.success }]}>
-                {takenToday}/{totalDosesToday}
+              <Text style={[styles.compactStatNumber, { color: '#10B981' }]}>
+                {takenDosesToday}
               </Text>
               <Text style={[styles.compactStatLabel, { color: colors.subtleText }]}>
-                Taken Today
+                Taken
               </Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.compactStatItem}>
-              <Text style={[styles.compactStatNumber, { color: colors.error }]}>
-                {overdueCount}
+              <Text style={[styles.compactStatNumber, { color: '#F59E0B' }]}>
+                {pendingDosesToday}
               </Text>
               <Text style={[styles.compactStatLabel, { color: colors.subtleText }]}>
-                Overdue
+                Pending
               </Text>
             </View>
           </View>
@@ -599,12 +630,15 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  scrollViewContent: {
+    flexGrow: 1,
+  },
   header: {
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 20,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
@@ -615,21 +649,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
+  },
+  greetingContainer: {
+    flex: 1,
+    marginRight: 12,
   },
   greeting: {
-    fontSize: 32,
+    fontSize: 28,
     fontFamily: 'Manrope_800ExtraBold',
     marginBottom: 4,
   },
   userName: {
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: 'Manrope_500Medium',
   },
   emergencyButton: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#EF4444',
@@ -665,70 +703,79 @@ const styles = StyleSheet.create({
     opacity: 0.3,
   },
   content: {
-    padding: 20,
+    padding: 16,
   },
   timeSection: {
-    marginBottom: 28,
+    marginBottom: 24,
   },
   timeSectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: 14,
     marginBottom: 12,
   },
   timeSectionHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    flex: 1,
+    marginRight: 8,
   },
   timeSectionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 10,
+  },
+  timeSectionTextContainer: {
+    flex: 1,
   },
   timeSectionTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontFamily: 'Manrope_700Bold',
     marginBottom: 2,
   },
   timeSectionSubtitle: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: 'Manrope_500Medium',
   },
   timeSectionStats: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
   },
   statPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 16,
     backgroundColor: 'rgba(100, 116, 139, 0.1)',
+    minWidth: 32,
+    alignItems: 'center',
   },
   statPillText: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: 'Manrope_700Bold',
   },
   pendingPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 16,
+    minWidth: 32,
+    alignItems: 'center',
   },
   pendingPillText: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: 'Manrope_700Bold',
   },
   medicineList: {
-    gap: 12,
+    gap: 10,
   },
   medicineItem: {
     flexDirection: 'row',
-    borderRadius: 16,
+    borderRadius: 14,
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -741,116 +788,121 @@ const styles = StyleSheet.create({
   },
   medicineItemContent: {
     flex: 1,
-    padding: 16,
+    padding: 14,
   },
   medicineItemHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   medicineItemLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   medicineItemTime: {
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: 'Manrope_700Bold',
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: 10,
   },
   statusText: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: 'Manrope_600SemiBold',
   },
   medicineItemName: {
-    fontSize: 18,
+    fontSize: 17,
     fontFamily: 'Manrope_700Bold',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   medicineItemDetails: {
     flexDirection: 'row',
-    gap: 16,
-    marginBottom: 8,
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 6,
   },
   detailItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
+    maxWidth: SCREEN_WIDTH * 0.4,
   },
   detailText: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: 'Manrope_500Medium',
+    flexShrink: 1,
   },
   medicineItemDescription: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: 'Manrope_400Regular',
-    lineHeight: 18,
-    marginBottom: 12,
+    lineHeight: 17,
+    marginBottom: 10,
   },
   medicineItemActions: {
     flexDirection: 'row',
     gap: 8,
-    marginTop: 8,
+    marginTop: 6,
   },
   miniActionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    gap: 4,
   },
   miniActionText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: 'Manrope_600SemiBold',
   },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 80,
-    paddingHorizontal: 24,
+    paddingVertical: 60,
+    paddingHorizontal: 20,
   },
   emptyStateTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontFamily: 'Manrope_700Bold',
-    marginTop: 24,
+    marginTop: 20,
     marginBottom: 8,
+    textAlign: 'center',
   },
   emptyStateText: {
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: 'Manrope_400Regular',
     textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 28,
+    lineHeight: 20,
+    marginBottom: 24,
+    paddingHorizontal: 16,
   },
   addFirstButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 12,
-    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+    gap: 6,
   },
   addFirstButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: 'Manrope_600SemiBold',
   },
   fab: {
     position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    bottom: 20,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',

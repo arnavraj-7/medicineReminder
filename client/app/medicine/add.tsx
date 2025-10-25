@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,12 +12,14 @@ import {
   Platform,
   Alert,
   Dimensions,
+  Switch,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import apiClient from '../../api/apiClient';
 import { useTheme } from '../../context/ThemeContext';
+import NotificationService from '../../services/NotificationService';
 
 const { width } = Dimensions.get('window');
 
@@ -31,9 +33,24 @@ const AddMedicineScreen: React.FC = () => {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [editingTimeIndex, setEditingTimeIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [enableNotifications, setEnableNotifications] = useState(true);
+  const [hasNotificationPermission, setHasNotificationPermission] = useState(false);
 
   const { colors, theme } = useTheme();
   const router = useRouter();
+
+  // Check notification permissions on mount
+  useEffect(() => {
+    checkNotificationPermissions();
+  }, []);
+
+  const checkNotificationPermissions = async () => {
+    const hasPermission = await NotificationService.requestPermissions();
+    setHasNotificationPermission(hasPermission);
+    if (!hasPermission) {
+      setEnableNotifications(false);
+    }
+  };
 
   const frequencyOptions = [
     { label: 'Once daily', value: 'Once daily', times: 1, icon: 'timer-outline' },
@@ -145,6 +162,7 @@ const AddMedicineScreen: React.FC = () => {
 
     setIsLoading(true);
     try {
+      // Prepare medicine data
       const medicineData = {
         name: name.trim(),
         dosage: dosage.trim(),
@@ -154,16 +172,79 @@ const AddMedicineScreen: React.FC = () => {
         description: description.trim() || undefined,
       };
 
-      await apiClient.post('/medicines', medicineData);
-      Alert.alert('Success', 'Medicine added successfully!', [
-        { text: 'OK', onPress: () => router.back() }
-      ]);
+      const response = await apiClient.post('/medicines', medicineData);
+      const newMedicine = response.data;
+
+      // Schedule notifications if enabled
+      if (enableNotifications && hasNotificationPermission) {
+        try {
+          const notificationIds = await NotificationService.scheduleMedicineReminders(
+            name.trim(),
+            times,
+            newMedicine._id
+          );
+
+          console.log(`✅ Scheduled ${notificationIds.length} notifications for ${name.trim()}`);
+
+          // Optional: Debug scheduled notifications
+          // await NotificationService.debugScheduledNotifications();
+
+          Alert.alert(
+            'Success',
+            `Medicine added successfully!\n\nYou'll receive ${times.length} daily reminder${times.length > 1 ? 's' : ''} at:\n${times.join(', ')}`,
+            [{ text: 'OK', onPress: () => router.back() }]
+          );
+        } catch (notificationError) {
+          console.error('Failed to schedule notifications:', notificationError);
+          Alert.alert(
+            'Partial Success',
+            'Medicine added but notifications could not be scheduled. You can try again from the medicine details.',
+            [{ text: 'OK', onPress: () => router.back() }]
+          );
+          return;
+        }
+      } else {
+        Alert.alert(
+          'Success',
+          'Medicine added successfully!',
+          [{ text: 'OK', onPress: () => router.back() }]
+        );
+      }
     } catch (error) {
       console.error('Failed to add medicine:', error);
       Alert.alert('Error', 'Failed to add medicine. Please try again.');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleNotificationToggle = async (value: boolean) => {
+    if (value && !hasNotificationPermission) {
+      Alert.alert(
+        'Notification Permission Required',
+        'Please enable notifications in your device settings to receive medicine reminders.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Check Permission',
+            onPress: async () => {
+              const hasPermission = await NotificationService.requestPermissions();
+              setHasNotificationPermission(hasPermission);
+              if (hasPermission) {
+                setEnableNotifications(true);
+              } else {
+                Alert.alert(
+                  'Permission Denied',
+                  'You need to enable notifications in your device settings to use this feature.'
+                );
+              }
+            }
+          }
+        ]
+      );
+      return;
+    }
+    setEnableNotifications(value);
   };
 
   const renderTimeInputs = () => {
@@ -347,6 +428,47 @@ const AddMedicineScreen: React.FC = () => {
               <View style={styles.timesGrid}>
                 {renderTimeInputs()}
               </View>
+            </View>
+
+            {/* Notification Toggle */}
+            <View style={[styles.inputSection, { backgroundColor: colors.card }]}>
+              <View style={styles.notificationToggle}>
+                <View style={styles.notificationToggleLeft}>
+                  <View style={[styles.iconBadge, { backgroundColor: colors.primary + '15' }]}>
+                    <Ionicons 
+                      name={enableNotifications ? "notifications" : "notifications-off"} 
+                      size={20} 
+                      color={colors.primary} 
+                    />
+                  </View>
+                  <View style={styles.sectionHeaderText}>
+                    <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                      Enable Reminders
+                    </Text>
+                    <Text style={[styles.sectionSubtitle, { color: colors.subtleText }]}>
+                      {hasNotificationPermission 
+                        ? 'Get notified at scheduled times'
+                        : 'Permission required for notifications'
+                      }
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={enableNotifications}
+                  onValueChange={handleNotificationToggle}
+                  trackColor={{ false: colors.borderColor, true: colors.primary + '40' }}
+                  thumbColor={enableNotifications ? colors.primary : colors.subtleText}
+                  ios_backgroundColor={colors.borderColor}
+                />
+              </View>
+              {!hasNotificationPermission && (
+                <View style={[styles.warningBanner, { backgroundColor: colors.warning + '15' }]}>
+                  <Ionicons name="warning" size={16} color={colors.warning} />
+                  <Text style={[styles.warningText, { color: colors.warning }]}>
+                    Notification permission not granted. Please enable in settings.
+                  </Text>
+                </View>
+              )}
             </View>
 
             {/* Food Timing */}
@@ -633,6 +755,31 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontFamily: 'Manrope_700Bold',
     flex: 1,
+  },
+  notificationToggle: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  notificationToggleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  warningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 10,
+    marginTop: 12,
+  },
+  warningText: {
+    fontSize: 12,
+    fontFamily: 'Manrope_600SemiBold',
+    flex: 1,
+    lineHeight: 16,
   },
   foodTimingGrid: {
     flexDirection: 'row',

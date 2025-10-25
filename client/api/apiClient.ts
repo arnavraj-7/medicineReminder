@@ -3,7 +3,7 @@
 // // Create an Axios instance
 // const apiClient = axios.create({
 //   baseURL: 'https://medicinereminder-mugz.onrender.com/api',
-//   // baseURL: 'http://172.20.10.3:6000/api',
+//   // baseURL: 'http://192.168.29.210:6000/api',
 
 //   withCredentials: true, // This can still stay if you want to use cookies later
 // });
@@ -27,7 +27,8 @@
 import axios from 'axios';
 import { useAuthStore } from '../store/AuthStore';
 
-const API_BASE_URL = 'https://medicinereminder-mugz.onrender.com/api'; 
+// const API_BASE_URL = 'https://medicinereminder-mugz.onrender.com/api'; 
+const API_BASE_URL = 'http://192.168.29.210:6000/api'; 
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,

@@ -1,241 +1,258 @@
-// import * as Notifications from 'expo-notifications';
-// import * as Device from 'expo-device';
-// import { Platform } from 'react-native';
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
+import { Platform } from 'react-native';
 
-// // Type definitions
-// interface ScheduledNotificationTrigger {
-//   type: 'calendar' | 'timeInterval' | 'daily' | 'weekly' | 'yearly' | 'unknown';
-//   repeats: boolean;
-//   value?: any;
-// }
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
 
-// interface ScheduledNotification {
-//   identifier: string;
-//   content: {
-//     title: string | null;
-//     body: string | null;
-//     data: any;
-//   };
-//   trigger: ScheduledNotificationTrigger;
-// }
+class NotificationService {
+  async requestPermissions() {
+    try {
+      if (!Device.isDevice) {
+        console.warn('Notifications only work on physical devices');
+        return false;
+      }
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      if (finalStatus !== 'granted') {
+        console.warn('Notification permission not granted');
+        return false;
+      }
+      if (Platform.OS === 'android') {
+        await this.setupAndroidChannel();
+      }
+      return true;
+    } catch (error) {
+      console.error('Error requesting notification permissions:', error);
+      return false;
+    }
+  }
 
-// // Configure notification behavior
-// Notifications.setNotificationHandler({
-//   handleNotification: async () => ({
-//     shouldShowAlert: true,
-//     shouldPlaySound: true,
-//     shouldSetBadge: true,
-//     shouldShowBanner: true,
-//     shouldShowList: true,
-//   }),
-// });
+  async setupAndroidChannel() {
+    await Notifications.setNotificationChannelAsync('medicine-reminders', {
+      name: 'Medicine Reminders',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      sound: 'default',
+      enableVibrate: true,
+      lightColor: '#FF6B6B',
+    });
+  }
 
-// class NotificationService {
-//   // Request notification permissions
-//   async requestPermissions(): Promise<string | null> {
-//     try {
-//       if (!Device.isDevice) {
-//         console.log('Notifications only work on physical devices');
-//         return null;
-//       }
+  /**
+   * THE CORRECT FIX - Uses DailyTriggerInput with proper type
+   * 
+   * Key: Must include type: Notifications.SchedulableTriggerInputTypes.DAILY
+   * This prevents immediate firing!
+   */
+  async scheduleMedicineReminders(medicineName, times, medicineId) {
+    try {
+      const notificationIds = [];
 
-//       const { status: existingStatus } = await Notifications.getPermissionsAsync();
-//       let finalStatus = existingStatus;
+      for (const time of times) {
+        const [hours, minutes] = time.split(':').map(Number);
 
-//       if (existingStatus !== 'granted') {
-//         const { status } = await Notifications.requestPermissionsAsync();
-//         finalStatus = status;
-//       }
+        if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+          console.error(`❌ Invalid time format: ${time}`);
+          continue;
+        }
 
-//       if (finalStatus !== 'granted') {
-//         console.log('Failed to get notification permissions');
-//         return null;
-//       }
+        const now = new Date();
+        console.log(`\n⏰ Scheduling ${time} for ${medicineName}`);
+        console.log(`   Current time: ${now.toLocaleTimeString()}`);
 
-//       // Configure notification channel for Android
-//       if (Platform.OS === 'android') {
-//         await Notifications.setNotificationChannelAsync('medicine-reminders', {
-//           name: 'Medicine Reminders',
-//           importance: Notifications.AndroidImportance.MAX,
-//           vibrationPattern: [0, 250, 250, 250],
-//           lightColor: '#FF231F7C',
-//           sound: 'default',
-//         });
-//       }
+        // Use DAILY trigger with TYPE specified - this is the key!
+        const notificationId = await Notifications.scheduleNotificationAsync({
+          content: {
+            title: `💊 Time for ${medicineName}`,
+            body: `Don't forget to take your medicine at ${time}`,
+            sound: 'default',
+            data: {
+              medicineId,
+              time,
+              type: 'medicine_reminder',
+              medicineName,
+              scheduledTime: time,
+              hours,
+              minutes,
+            },
+            ...(Platform.OS === 'android' && {
+              channelId: 'medicine-reminders',
+            }),
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DAILY, // THIS IS THE KEY!
+            hour: hours,
+            minute: minutes,
+            repeats: true,
+          },
+        });
 
-//       return finalStatus;
-//     } catch (error) {
-//       console.error('Error requesting notification permissions:', error);
-//       return null;
-//     }
-//   }
+        notificationIds.push(notificationId);
+        console.log(`   ✅ Notification ID: ${notificationId}`);
+        console.log(`   🎯 Will fire daily at ${time}`);
+      }
 
-//   // Schedule a notification for a specific time
-//   async scheduleMedicineNotification(
-//     medicineId: string,
-//     medicineName: string,
-//     dosage: string,
-//     time: string,
-//     foodTiming?: string
-//   ): Promise<string | null> {
-//     try {
-//       const [hours, minutes] = time.split(':').map(Number);
+      console.log(`\n✅ COMPLETED: Scheduled ${notificationIds.length} notification(s) for ${medicineName}\n`);
+      return notificationIds;
+    } catch (error) {
+      console.error('❌ Error scheduling medicine reminders:', error);
+      throw error;
+    }
+  }
+
+  async sendImmediateNotification({ title, body, data = {} }) {
+    try {
+      const notificationId = await Notifications.scheduleNotificationAsync({
+        content: {
+          title,
+          body,
+          sound: 'default',
+          data: { ...data, type: 'immediate' },
+          ...(Platform.OS === 'android' && { channelId: 'medicine-reminders' }),
+        },
+        trigger: null,
+      });
+      console.log(`✅ Sent immediate notification (ID: ${notificationId})`);
+      return notificationId;
+    } catch (error) {
+      console.error('Error sending immediate notification:', error);
+      throw error;
+    }
+  }
+
+  async cancelNotifications(notificationIds) {
+    try {
+      for (const id of notificationIds) {
+        await Notifications.cancelScheduledNotificationAsync(id);
+        console.log(`🗑️ Cancelled notification: ${id}`);
+      }
+    } catch (error) {
+      console.error('Error cancelling notifications:', error);
+      throw error;
+    }
+  }
+
+  async cancelNotificationsByMedicineId(medicineId) {
+    try {
+      if (!medicineId) {
+        console.warn('cancelNotificationsByMedicineId called without a medicineId.');
+        return;
+      }
+      const allScheduledNotifications = await this.getAllScheduledNotifications();
+      const notificationIdsToCancel = allScheduledNotifications
+        .filter(notif => notif.content.data && notif.content.data.medicineId === medicineId)
+        .map(notif => notif.identifier);
+      if (notificationIdsToCancel.length > 0) {
+        console.log(`Found ${notificationIdsToCancel.length} notifications to cancel for medicineId: ${medicineId}`);
+        await this.cancelNotifications(notificationIdsToCancel);
+      } else {
+        console.log(`No scheduled notifications found for medicineId: ${medicineId}. Nothing to cancel.`);
+      }
+    } catch (error) {
+      console.error(`Failed to cancel notifications for medicineId ${medicineId}:`, error);
+    }
+  }
+
+  async cancelAllNotifications() {
+    try {
+      await Notifications.cancelAllScheduledNotificationsAsync();
+      console.log('🗑️ Cancelled all scheduled notifications');
+    } catch (error) {
+      console.error('Error cancelling all notifications:', error);
+      throw error;
+    }
+  }
+
+  async getAllScheduledNotifications() {
+    try {
+      const notifications = await Notifications.getAllScheduledNotificationsAsync();
+      return notifications;
+    } catch (error) {
+      console.error('Error getting scheduled notifications:', error);
+      return [];
+    }
+  }
+
+  async updateMedicineReminders(medicineId, medicineName, newTimes) {
+    try {
+      console.log(`\n🔄 Updating reminders for ${medicineName} (ID: ${medicineId})`);
+      await this.cancelNotificationsByMedicineId(medicineId);
+      const newNotificationIds = await this.scheduleMedicineReminders(
+        medicineName,
+        newTimes,
+        medicineId
+      );
+      return newNotificationIds;
+    } catch (error) {
+      console.error('Error updating medicine reminders:', error);
+      throw error;
+    }
+  }
+
+  addNotificationReceivedListener(callback) {
+    return Notifications.addNotificationReceivedListener(callback);
+  }
+
+  addNotificationResponseReceivedListener(callback) {
+    return Notifications.addNotificationResponseReceivedListener(callback);
+  }
+  
+  async debugScheduledNotifications() {
+    try {
+      const notifications = await this.getAllScheduledNotifications();
+      console.log('\n📋 ===== SCHEDULED NOTIFICATIONS DEBUG =====');
+      console.log(`Total scheduled: ${notifications.length}\n`);
       
-//       let bodyText = `Time to take ${dosage}`;
-//       if (foodTiming && foodTiming !== 'anytime') {
-//         const timingText = foodTiming === 'before' ? 'before food' :
-//                           foodTiming === 'after' ? 'after food' : 'with food';
-//         bodyText += ` ${timingText}`;
-//       }
-
-//       const trigger = {
-//         hour: hours,
-//         minute: minutes,
-//         repeats: true,
-//       };
-
-//       const notificationId = await Notifications.scheduleNotificationAsync({
-//         content: {
-//           title: `💊 ${medicineName}`,
-//           body: bodyText,
-//           sound: 'default',
-//           priority: Notifications.AndroidNotificationPriority.HIGH,
-//           data: {
-//             medicineId,
-//             time,
-//             type: 'medicine-reminder',
-//           },
-//           ...(Platform.OS === 'android' && {
-//             channelId: 'medicine-reminders',
-//           }),
-//         },
-//         trigger,
-//       });
-
-//       return notificationId;
-//     } catch (error) {
-//       console.error('Error scheduling notification:', error);
-//       return null;
-//     }
-//   }
-
-//   // Schedule notifications for all times of a medicine
-//   async scheduleMedicineNotifications(medicine: {
-//     _id: string;
-//     name: string;
-//     dosage: string;
-//     times: string[];
-//     foodTiming?: string;
-//   }): Promise<string[]> {
-//     try {
-//       const notificationIds: string[] = [];
-
-//       for (const time of medicine.times) {
-//         const notificationId = await this.scheduleMedicineNotification(
-//           medicine._id,
-//           medicine.name,
-//           medicine.dosage,
-//           time,
-//           medicine.foodTiming
-//         );
-//         if (notificationId) {
-//           notificationIds.push(notificationId);
-//         }
-//       }
-
-//       return notificationIds;
-//     } catch (error) {
-//       console.error('Error scheduling medicine notifications:', error);
-//       return [];
-//     }
-//   }
-
-//   // Cancel all notifications for a medicine
-//   async cancelMedicineNotifications(medicineId: string): Promise<number> {
-//     try {
-//       const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
+      if (notifications.length === 0) {
+        console.log('No scheduled notifications found.');
+      } else {
+        notifications.forEach((notif, index) => {
+          const data = notif.content.data || {};
+          console.log(`Notification ${index + 1}:`);
+          console.log(`  ID: ${notif.identifier}`);
+          console.log(`  Title: ${notif.content.title}`);
+          console.log(`  Body: ${notif.content.body}`);
+          console.log(`  Medicine: ${data.medicineName || 'N/A'}`);
+          console.log(`  Time: ${data.time || 'N/A'}`);
+          console.log(`  Occurrence: ${data.occurrence || 'N/A'}`);
+          console.log(`  Trigger:`, JSON.stringify(notif.trigger, null, 2));
+          console.log('---');
+        });
+      }
       
-//       const notificationsToCancel = scheduledNotifications
-//         .filter((notification: any) => notification.content.data?.medicineId === medicineId)
-//         .map((notification: any) => notification.identifier);
+      console.log('==========================================\n');
+      return notifications;
+    } catch (error) {
+      console.error('Error debugging notifications:', error);
+      return [];
+    }
+  }
 
-//       for (const id of notificationsToCancel) {
-//         await Notifications.cancelScheduledNotificationAsync(id);
-//       }
+  /**
+   * Test helper - schedules a notification X minutes from now
+   */
+  async scheduleTestNotification(minutesFromNow = 1) {
+    const testTime = new Date(Date.now() + minutesFromNow * 60 * 1000);
+    const timeStr = `${testTime.getHours().toString().padStart(2, '0')}:${testTime.getMinutes().toString().padStart(2, '0')}`;
+    
+    console.log(`🧪 Scheduling test notification for ${timeStr} (${minutesFromNow} minute(s) from now)`);
+    
+    return await this.scheduleMedicineReminders(
+      'Test Medicine',
+      [timeStr],
+      'test-' + Date.now()
+    );
+  }
+}
 
-//       return notificationsToCancel.length;
-//     } catch (error) {
-//       console.error('Error canceling notifications:', error);
-//       return 0;
-//     }
-//   }
-
-//   // Cancel all scheduled notifications
-//   async cancelAllNotifications(): Promise<void> {
-//     try {
-//       await Notifications.cancelAllScheduledNotificationsAsync();
-//     } catch (error) {
-//       console.error('Error canceling all notifications:', error);
-//     }
-//   }
-
-//   // Get all scheduled notifications
-//   async getAllScheduledNotifications(): Promise<any[]> {
-//     try {
-//       return await Notifications.getAllScheduledNotificationsAsync();
-//     } catch (error) {
-//       console.error('Error getting scheduled notifications:', error);
-//       return [];
-//     }
-//   }
-
-//   // Send immediate notification (for testing or immediate reminders)
-//   async sendImmediateNotification(title: string, body: string, data?: any): Promise<void> {
-//     try {
-//       await Notifications.scheduleNotificationAsync({
-//         content: {
-//           title,
-//           body,
-//           sound: 'default',
-//           data: data || {},
-//           ...(Platform.OS === 'android' && {
-//             channelId: 'medicine-reminders',
-//           }),
-//         },
-//         trigger: null,
-//       });
-//     } catch (error) {
-//       console.error('Error sending immediate notification:', error);
-//     }
-//   }
-
-//   // Setup notification response listener
-//   setupNotificationListeners(
-//     onNotificationReceived?: (notification: Notifications.Notification) => void,
-//     onNotificationResponse?: (response: Notifications.NotificationResponse) => void
-//   ): () => void {
-//     // Listener for when notification is received while app is open
-//     const receivedListener = Notifications.addNotificationReceivedListener((notification: Notifications.Notification) => {
-//       console.log('Notification received:', notification);
-//       if (onNotificationReceived) {
-//         onNotificationReceived(notification);
-//       }
-//     });
-
-//     // Listener for when user taps on notification
-//     const responseListener = Notifications.addNotificationResponseReceivedListener((response: Notifications.NotificationResponse) => {
-//       console.log('Notification response:', response);
-//       if (onNotificationResponse) {
-//         onNotificationResponse(response);
-//       }
-//     });
-
-//     // Return cleanup function
-//     return () => {
-//       receivedListener.remove();
-//       responseListener.remove();
-//     };
-//   }
-// }
-
-// export default new NotificationService();
+export default new NotificationService();
